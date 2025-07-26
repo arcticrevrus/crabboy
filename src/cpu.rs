@@ -31,6 +31,7 @@ pub enum ValueType {
     u8,
     u16,
     deref(Register),
+    u16_deref,
 }
 
 pub enum Condition {
@@ -45,6 +46,17 @@ pub enum HLMode {
     Normal,
     Increment,
     Decrement,
+}
+
+pub enum RSTAddr {
+    H00,
+    H08,
+    H10,
+    H18,
+    H20,
+    H28,
+    H30,
+    H38,
 }
 
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
@@ -84,9 +96,9 @@ pub enum Opcode {
     JR(Condition, ValueType),
     RET(Condition),
     RETI,
-    JP(Condition, ValueType),
+    JP(Condition, OpTarget),
     CALL(Condition, ValueType),
-    RST,
+    RST(RSTAddr),
     POP(Register),
     PUSH(Register),
     SWAP,
@@ -96,6 +108,15 @@ pub enum Opcode {
     BIT,
     SET,
     HALT,
+    CB(CBPrefix),
+}
+
+pub enum CBPrefix {
+    RLC(OpTarget),
+    RRC(OpTarget),
+    RL(OpTarget),
+    RR(OpTarget),
+    SLA(OpTarget),
 }
 
 pub struct Registers {
@@ -149,7 +170,7 @@ impl Cpu {
             },
         }
     }
-    pub fn parse_opcode(operation: u8) -> Opcode {
+    pub fn parse_opcode(&self, operation: u8, cb_opcode: Option<u8>) -> Opcode {
         match operation {
             0x00 => Opcode::NOP,
             0x01 => Opcode::LD(
@@ -633,13 +654,107 @@ impl Cpu {
             0xBF => Opcode::CP(Register::A, OpTarget::Register(Register::A)),
             0xC0 => Opcode::RET(Condition::NZ),
             0xC1 => Opcode::POP(Register::BC),
-            0xC2 => Opcode::JP(Condition::NZ, ValueType::u16),
-            0xC3 => Opcode::JP(Condition::None, ValueType::u16),
+            0xC2 => Opcode::JP(Condition::NZ, OpTarget::Value(ValueType::u16)),
+            0xC3 => Opcode::JP(Condition::None, OpTarget::Value(ValueType::u16)),
             0xC4 => Opcode::CALL(Condition::NZ, ValueType::u16),
             0xC5 => Opcode::PUSH(Register::BC),
             0xC6 => Opcode::ADD(Register::A, OpTarget::Value(ValueType::u8)),
-            0xC7 => Opcode::RST,
-
+            0xC7 => Opcode::RST(RSTAddr::H00),
+            0xC8 => Opcode::RET(Condition::Z),
+            0xC9 => Opcode::RET(Condition::None),
+            0xCA => Opcode::JP(Condition::Z, OpTarget::Value(ValueType::u16)),
+            0xCB => match cb_opcode {
+                Some(oc) => Opcode::CB(self.parse_cb_prefix(oc)),
+                None => panic!("CB opcode sent with no cb opcode"),
+            },
+            0xCC => Opcode::CALL(Condition::Z, ValueType::u16),
+            0xCD => Opcode::CALL(Condition::None, ValueType::u16),
+            0xCE => Opcode::ADC(Register::A, OpTarget::Value(ValueType::u8)),
+            0xCF => Opcode::RST(RSTAddr::H08),
+            0xD0 => Opcode::RET(Condition::NC),
+            0xD1 => Opcode::POP(Register::DE),
+            0xD2 => Opcode::JP(Condition::NC, OpTarget::Value(ValueType::u16)),
+            0xD3 => Opcode::HALT,
+            0xD4 => Opcode::CALL(Condition::NC, ValueType::u16),
+            0xD5 => Opcode::PUSH(Register::DE),
+            0xD6 => Opcode::SUB(Register::A, OpTarget::Value(ValueType::u8)),
+            0xD7 => Opcode::RST(RSTAddr::H10),
+            0xD8 => Opcode::RET(Condition::C),
+            0xD9 => Opcode::RETI,
+            0xDA => Opcode::JP(Condition::C, OpTarget::Value(ValueType::u16)),
+            0xDB => Opcode::HALT,
+            0xDC => Opcode::CALL(Condition::C, ValueType::u16),
+            0xDD => Opcode::HALT,
+            0xDE => Opcode::SBC(Register::A, OpTarget::Value(ValueType::u8)),
+            0xDF => Opcode::RST(RSTAddr::H18),
+            0xE0 => todo!(),
+            0xE1 => Opcode::POP(Register::HL(HLMode::Normal)),
+            0xE2 => todo!(),
+            0xE3 => Opcode::HALT,
+            0xE4 => Opcode::HALT,
+            0xE5 => Opcode::PUSH(Register::HL(HLMode::Normal)),
+            0xE6 => Opcode::SUB(Register::A, OpTarget::Value(ValueType::u8)),
+            0xE7 => Opcode::RST(RSTAddr::H20),
+            0xE8 => Opcode::ADD(Register::SP, OpTarget::Value(ValueType::i8)),
+            0xE9 => Opcode::JP(
+                Condition::None,
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+            ),
+            0xEA => Opcode::LD(
+                OpTarget::Value(ValueType::u16_deref),
+                OpTarget::Register(Register::A),
+            ),
+            0xEB => Opcode::HALT,
+            0xEC => Opcode::HALT,
+            0xED => Opcode::HALT,
+            0xEE => Opcode::XOR(Register::A, OpTarget::Value(ValueType::u8)),
+            0xEF => Opcode::RST(RSTAddr::H28),
+            0xF0 => todo!(),
+            0xF1 => Opcode::POP(Register::AF),
+            0xF2 => todo!(),
+            0xF3 => Opcode::DI,
+            0xF4 => Opcode::HALT,
+            0xF5 => Opcode::PUSH(Register::AF),
+            0xF6 => Opcode::OR(Register::A, OpTarget::Value(ValueType::u8)),
+            0xF7 => Opcode::RST(RSTAddr::H30),
+            0xF8 => todo!(),
+            0xF9 => Opcode::LD(
+                OpTarget::Register(Register::SP),
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+            ),
+            0xFA => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Value(ValueType::u16_deref),
+            ),
+            0xFB => Opcode::EI,
+            0xFC => Opcode::HALT,
+            0xFD => Opcode::HALT,
+            0xFE => Opcode::CP(Register::A, OpTarget::Value(ValueType::u8)),
+            0xFF => Opcode::RST(RSTAddr::H38),
+        }
+    }
+    fn parse_cb_prefix(&self, cb_opcode: u8) -> CBPrefix {
+        match cb_opcode {
+            0x00 => CBPrefix::RLC(OpTarget::Register(Register::B)),
+            0x01 => CBPrefix::RLC(OpTarget::Register(Register::C)),
+            0x02 => CBPrefix::RLC(OpTarget::Register(Register::D)),
+            0x03 => CBPrefix::RLC(OpTarget::Register(Register::E)),
+            0x04 => CBPrefix::RLC(OpTarget::Register(Register::H)),
+            0x05 => CBPrefix::RLC(OpTarget::Register(Register::L)),
+            0x06 => CBPrefix::RLC(OpTarget::Value(ValueType::deref(Register::HL(
+                HLMode::Normal,
+            )))),
+            0x07 => CBPrefix::RLC(OpTarget::Register(Register::A)),
+            0x08 => CBPrefix::RRC(OpTarget::Register(Register::B)),
+            0x09 => CBPrefix::RRC(OpTarget::Register(Register::C)),
+            0x0A => CBPrefix::RRC(OpTarget::Register(Register::D)),
+            0x0B => CBPrefix::RRC(OpTarget::Register(Register::E)),
+            0x0C => CBPrefix::RRC(OpTarget::Register(Register::H)),
+            0x0D => CBPrefix::RRC(OpTarget::Register(Register::L)),
+            0x0E => CBPrefix::RRC(OpTarget::Value(ValueType::deref(Register::HL(
+                HLMode::Normal,
+            )))),
+            0x0F => CBPrefix::RRC(OpTarget::Register(Register::A)),
             _ => todo!(),
         }
     }
