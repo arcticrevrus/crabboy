@@ -18,6 +18,7 @@ pub enum Register {
     L,
     SP,
     PC,
+    SPPlusi8,
 }
 
 pub enum OpTarget {
@@ -32,6 +33,8 @@ pub enum ValueType {
     u16,
     deref(Register),
     u16_deref,
+    ff00_plus_u8_deref,
+    ff00_plus_register_deref(Register),
 }
 
 pub enum Condition {
@@ -687,9 +690,15 @@ impl Cpu {
             0xDD => Opcode::HALT,
             0xDE => Opcode::SBC(Register::A, OpTarget::Value(ValueType::u8)),
             0xDF => Opcode::RST(RSTAddr::H18),
-            0xE0 => todo!(),
+            0xE0 => Opcode::LD(
+                OpTarget::Value(ValueType::ff00_plus_u8_deref),
+                OpTarget::Register(Register::A),
+            ),
             0xE1 => Opcode::POP(Register::HL(HLMode::Normal)),
-            0xE2 => todo!(),
+            0xE2 => Opcode::LD(
+                OpTarget::Value(ValueType::ff00_plus_register_deref(Register::C)),
+                OpTarget::Register(Register::A),
+            ),
             0xE3 => Opcode::HALT,
             0xE4 => Opcode::HALT,
             0xE5 => Opcode::PUSH(Register::HL(HLMode::Normal)),
@@ -709,15 +718,24 @@ impl Cpu {
             0xED => Opcode::HALT,
             0xEE => Opcode::XOR(Register::A, OpTarget::Value(ValueType::u8)),
             0xEF => Opcode::RST(RSTAddr::H28),
-            0xF0 => todo!(),
+            0xF0 => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Value(ValueType::ff00_plus_u8_deref),
+            ),
             0xF1 => Opcode::POP(Register::AF),
-            0xF2 => todo!(),
+            0xF2 => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Value(ValueType::ff00_plus_register_deref(Register::C)),
+            ),
             0xF3 => Opcode::DI,
             0xF4 => Opcode::HALT,
             0xF5 => Opcode::PUSH(Register::AF),
             0xF6 => Opcode::OR(Register::A, OpTarget::Value(ValueType::u8)),
             0xF7 => Opcode::RST(RSTAddr::H30),
-            0xF8 => todo!(),
+            0xF8 => Opcode::LD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::SPPlusi8),
+            ),
             0xF9 => Opcode::LD(
                 OpTarget::Register(Register::SP),
                 OpTarget::Register(Register::HL(HLMode::Normal)),
