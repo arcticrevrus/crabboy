@@ -57,6 +57,7 @@ pub enum Opcode {
     INC(Register),
     DEC(Register),
     ADD(OpTarget, OpTarget),
+    ADC(OpTarget, OpTarget),
     ADD_SP,
     XOR,
     OR,
@@ -91,6 +92,7 @@ pub enum Opcode {
     RES,
     BIT,
     SET,
+    HALT,
 }
 
 pub struct Registers {
@@ -277,6 +279,302 @@ impl Cpu {
                 OpTarget::Register(Register::A),
                 OpTarget::Register(Register::HL(HLMode::Decrement)),
             ),
+            0x3B => Opcode::DEC(Register::SP),
+            0x3C => Opcode::INC(Register::A),
+            0x3D => Opcode::DEC(Register::A),
+            0x3E => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Value(ValueType::u8),
+            ),
+            0x3F => Opcode::CCF,
+            0x40 => Opcode::LD(
+                OpTarget::Register(Register::B),
+                OpTarget::Register(Register::B),
+            ),
+            0x41 => Opcode::LD(
+                OpTarget::Register(Register::B),
+                OpTarget::Register(Register::C),
+            ),
+            0x42 => Opcode::LD(
+                OpTarget::Register(Register::B),
+                OpTarget::Register(Register::C),
+            ),
+            0x43 => Opcode::LD(
+                OpTarget::Register(Register::B),
+                OpTarget::Register(Register::D),
+            ),
+            0x44 => Opcode::LD(
+                OpTarget::Register(Register::B),
+                OpTarget::Register(Register::H),
+            ),
+            0x45 => Opcode::LD(
+                OpTarget::Register(Register::B),
+                OpTarget::Register(Register::L),
+            ),
+            0x46 => Opcode::LD(
+                OpTarget::Register(Register::B),
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+            ),
+            0x47 => Opcode::LD(
+                OpTarget::Register(Register::B),
+                OpTarget::Register(Register::A),
+            ),
+            0x48 => Opcode::LD(
+                OpTarget::Register(Register::C),
+                OpTarget::Register(Register::B),
+            ),
+            0x49 => Opcode::LD(
+                OpTarget::Register(Register::C),
+                OpTarget::Register(Register::C),
+            ),
+            0x4A => Opcode::LD(
+                OpTarget::Register(Register::C),
+                OpTarget::Register(Register::D),
+            ),
+            0x4B => Opcode::LD(
+                OpTarget::Register(Register::C),
+                OpTarget::Register(Register::E),
+            ),
+            0x4C => Opcode::LD(
+                OpTarget::Register(Register::C),
+                OpTarget::Register(Register::H),
+            ),
+            0x4D => Opcode::LD(
+                OpTarget::Register(Register::C),
+                OpTarget::Register(Register::L),
+            ),
+            0x4E => Opcode::LD(
+                OpTarget::Register(Register::C),
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+            ),
+            0x4F => Opcode::LD(
+                OpTarget::Register(Register::C),
+                OpTarget::Register(Register::A),
+            ),
+            0x50 => Opcode::LD(
+                OpTarget::Register(Register::D),
+                OpTarget::Register(Register::B),
+            ),
+            0x51 => Opcode::LD(
+                OpTarget::Register(Register::D),
+                OpTarget::Register(Register::C),
+            ),
+            0x52 => Opcode::LD(
+                OpTarget::Register(Register::D),
+                OpTarget::Register(Register::D),
+            ),
+            0x53 => Opcode::LD(
+                OpTarget::Register(Register::D),
+                OpTarget::Register(Register::E),
+            ),
+            0x54 => Opcode::LD(
+                OpTarget::Register(Register::D),
+                OpTarget::Register(Register::H),
+            ),
+            0x55 => Opcode::LD(
+                OpTarget::Register(Register::D),
+                OpTarget::Register(Register::L),
+            ),
+            0x56 => Opcode::LD(
+                OpTarget::Register(Register::D),
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+            ),
+            0x57 => Opcode::LD(
+                OpTarget::Register(Register::D),
+                OpTarget::Register(Register::A),
+            ),
+            0x58 => Opcode::LD(
+                OpTarget::Register(Register::D),
+                OpTarget::Register(Register::B),
+            ),
+            0x59 => Opcode::LD(
+                OpTarget::Register(Register::E),
+                OpTarget::Register(Register::C),
+            ),
+            0x5A => Opcode::LD(
+                OpTarget::Register(Register::E),
+                OpTarget::Register(Register::D),
+            ),
+            0x5B => Opcode::LD(
+                OpTarget::Register(Register::E),
+                OpTarget::Register(Register::E),
+            ),
+            0x5C => Opcode::LD(
+                OpTarget::Register(Register::E),
+                OpTarget::Register(Register::H),
+            ),
+            0x5D => Opcode::LD(
+                OpTarget::Register(Register::E),
+                OpTarget::Register(Register::L),
+            ),
+            0x5E => Opcode::LD(
+                OpTarget::Register(Register::E),
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+            ),
+            0x5F => Opcode::LD(
+                OpTarget::Register(Register::E),
+                OpTarget::Register(Register::A),
+            ),
+            0x60 => Opcode::LD(
+                OpTarget::Register(Register::H),
+                OpTarget::Register(Register::B),
+            ),
+            0x61 => Opcode::LD(
+                OpTarget::Register(Register::H),
+                OpTarget::Register(Register::C),
+            ),
+            0x62 => Opcode::LD(
+                OpTarget::Register(Register::H),
+                OpTarget::Register(Register::D),
+            ),
+            0x63 => Opcode::LD(
+                OpTarget::Register(Register::H),
+                OpTarget::Register(Register::E),
+            ),
+            0x64 => Opcode::LD(
+                OpTarget::Register(Register::H),
+                OpTarget::Register(Register::H),
+            ),
+            0x65 => Opcode::LD(
+                OpTarget::Register(Register::H),
+                OpTarget::Register(Register::L),
+            ),
+            0x66 => Opcode::LD(
+                OpTarget::Register(Register::H),
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+            ),
+            0x67 => Opcode::LD(
+                OpTarget::Register(Register::H),
+                OpTarget::Register(Register::A),
+            ),
+            0x68 => Opcode::LD(
+                OpTarget::Register(Register::L),
+                OpTarget::Register(Register::B),
+            ),
+            0x69 => Opcode::LD(
+                OpTarget::Register(Register::L),
+                OpTarget::Register(Register::C),
+            ),
+            0x6A => Opcode::LD(
+                OpTarget::Register(Register::L),
+                OpTarget::Register(Register::D),
+            ),
+            0x6B => Opcode::LD(
+                OpTarget::Register(Register::L),
+                OpTarget::Register(Register::E),
+            ),
+            0x6C => Opcode::LD(
+                OpTarget::Register(Register::L),
+                OpTarget::Register(Register::H),
+            ),
+            0x6D => Opcode::LD(
+                OpTarget::Register(Register::L),
+                OpTarget::Register(Register::L),
+            ),
+            0x6E => Opcode::LD(
+                OpTarget::Register(Register::L),
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+            ),
+            0x6F => Opcode::LD(
+                OpTarget::Register(Register::L),
+                OpTarget::Register(Register::A),
+            ),
+            0x70 => Opcode::LD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::B),
+            ),
+            0x71 => Opcode::LD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::C),
+            ),
+            0x72 => Opcode::LD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::D),
+            ),
+            0x73 => Opcode::LD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::E),
+            ),
+            0x74 => Opcode::LD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::H),
+            ),
+            0x75 => Opcode::LD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::L),
+            ),
+            0x76 => Opcode::HALT,
+            0x77 => Opcode::LD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::A),
+            ),
+            0x78 => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::B),
+            ),
+            0x79 => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::C),
+            ),
+            0x7A => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::D),
+            ),
+            0x7B => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::E),
+            ),
+            0x7C => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::H),
+            ),
+            0x7D => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::L),
+            ),
+            0x7E => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+            ),
+            0x7F => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::A),
+            ),
+            0x80 => Opcode::ADD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::B),
+            ),
+            0x81 => Opcode::ADD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::C),
+            ),
+            0x82 => Opcode::ADD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::D),
+            ),
+            0x83 => Opcode::ADD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::E),
+            ),
+            0x84 => Opcode::ADD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::H),
+            ),
+            0x85 => Opcode::ADD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::L),
+            ),
+            0x86 => Opcode::ADD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+            ),
+            0x87 => Opcode::ADD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::A),
+            ),
+            0x87 => Opcode::ADC(
+
+            )
 
             _ => todo!(),
         }
