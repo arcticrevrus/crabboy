@@ -62,7 +62,7 @@ pub enum Opcode {
     SRA,
     SRL,
     CCF,
-    JR,
+    JR(ValueType),
     JR_COND,
     RET,
     RET_COND,
@@ -188,6 +188,9 @@ impl Cpu {
                 OpTarget::Register(Register::D),
                 OpTarget::Value(ValueType::u8),
             ),
+            0x17 => Opcode::RLA,
+            0x18 => Opcode::JR(ValueType::i8),
+
             _ => todo!(),
         }
     }
