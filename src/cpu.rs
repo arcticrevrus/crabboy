@@ -13,7 +13,7 @@ pub enum Register {
     DE,
     D,
     E,
-    HL,
+    HL(HLMode),
     H,
     L,
     SP,
@@ -31,6 +31,20 @@ pub enum ValueType {
     u8,
     u16,
     deref(Register),
+}
+
+pub enum JumpCondition {
+    None,
+    NZ,
+    NC,
+    C,
+    Z,
+}
+
+pub enum HLMode {
+    Normal,
+    Increment,
+    Decrement,
 }
 
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
@@ -52,6 +66,7 @@ pub enum Opcode {
     RRCA,
     RL,
     RR,
+    RRA,
     RLA,
     RLC,
     RRC,
@@ -62,15 +77,11 @@ pub enum Opcode {
     SRA,
     SRL,
     CCF,
-    JR(ValueType),
-    JR_COND,
+    JR(JumpCondition, ValueType),
     RET,
-    RET_COND,
     RETI,
     JP,
-    JP_COND,
     CALL,
-    CALL_COND,
     RST,
     POP,
     PUSH,
@@ -157,7 +168,7 @@ impl Cpu {
                 OpTarget::Register(Register::SP),
             ),
             0x09 => Opcode::ADD(
-                OpTarget::Register(Register::HL),
+                OpTarget::Register(Register::HL(HLMode::Normal)),
                 OpTarget::Register(Register::BC),
             ),
             0x0A => Opcode::LD(
@@ -189,7 +200,83 @@ impl Cpu {
                 OpTarget::Value(ValueType::u8),
             ),
             0x17 => Opcode::RLA,
-            0x18 => Opcode::JR(ValueType::i8),
+            0x18 => Opcode::JR(JumpCondition::None, ValueType::i8),
+            0x19 => Opcode::ADD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::BC),
+            ),
+            0x1A => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Value(ValueType::deref(Register::DE)),
+            ),
+            0x1B => Opcode::DEC(Register::DE),
+            0x1C => Opcode::INC(Register::E),
+            0x1D => Opcode::DEC(Register::E),
+            0x1E => Opcode::LD(
+                OpTarget::Register(Register::E),
+                OpTarget::Value(ValueType::u8),
+            ),
+            0x1F => Opcode::RRA,
+            0x20 => Opcode::JR(JumpCondition::NZ, ValueType::i8),
+            0x21 => Opcode::LD(
+                OpTarget::Register(Register::DE),
+                OpTarget::Value(ValueType::u16),
+            ),
+            0x22 => Opcode::LD(
+                OpTarget::Value(ValueType::deref(Register::HL(HLMode::Increment))),
+                OpTarget::Value(ValueType::u16),
+            ),
+            0x23 => Opcode::INC(Register::HL(HLMode::Normal)),
+            0x24 => Opcode::INC(Register::H),
+            0x25 => Opcode::DEC(Register::H),
+            0x26 => Opcode::LD(
+                OpTarget::Register(Register::H),
+                OpTarget::Value(ValueType::u8),
+            ),
+            0x27 => Opcode::DAA,
+            0x28 => Opcode::JR(JumpCondition::Z, ValueType::i8),
+            0x29 => Opcode::ADD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::SP),
+            ),
+            0x2A => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::HL(HLMode::Increment)),
+            ),
+            0x2B => Opcode::DEC(Register::HL(HLMode::Normal)),
+            0x2C => Opcode::INC(Register::L),
+            0x2D => Opcode::DEC(Register::L),
+            0x2E => Opcode::LD(
+                OpTarget::Register(Register::L),
+                OpTarget::Value(ValueType::u8),
+            ),
+            0x2F => Opcode::CCF,
+            0x30 => Opcode::JR(JumpCondition::NC, ValueType::i8),
+            0x31 => Opcode::LD(
+                OpTarget::Register(Register::SP),
+                OpTarget::Value(ValueType::u16),
+            ),
+            0x32 => Opcode::LD(
+                OpTarget::Register(Register::HL(HLMode::Decrement)),
+                OpTarget::Register(Register::A),
+            ),
+            0x33 => Opcode::INC(Register::SP),
+            0x34 => Opcode::INC(Register::HL(HLMode::Normal)),
+            0x35 => Opcode::DEC(Register::HL(HLMode::Normal)),
+            0x36 => Opcode::LD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::u8),
+            ),
+            0x37 => Opcode::SCF,
+            0x38 => Opcode::JR(JumpCondition::C, ValueType::i8),
+            0x39 => Opcode::ADD(
+                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Register(Register::SP),
+            ),
+            0x3A => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Register(Register::HL(HLMode::Decrement)),
+            ),
 
             _ => todo!(),
         }
