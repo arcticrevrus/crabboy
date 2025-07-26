@@ -3,15 +3,46 @@ pub enum Mode {
     GBC,
 }
 
+pub enum Register {
+    AF,
+    A,
+    F,
+    BC,
+    B,
+    C,
+    DE,
+    D,
+    E,
+    HL,
+    H,
+    L,
+    SP,
+    PC,
+}
+
+pub enum OpTarget {
+    Register(Register),
+    Value(ValueType),
+}
+
+#[allow(clippy::upper_case_acronyms, non_camel_case_types)]
+pub enum ValueType {
+    i8,
+    u8,
+    u16,
+    deref(Register),
+}
+
+#[allow(clippy::upper_case_acronyms, non_camel_case_types)]
 pub enum Opcode {
     NOP,
-    LD,
+    LD(OpTarget, OpTarget),
     LDH,
     LD_HL,
     LD_SP,
-    INC,
-    DEC,
-    ADD,
+    INC(Register),
+    DEC(Register),
+    ADD(OpTarget, OpTarget),
     ADD_SP,
     XOR,
     OR,
@@ -105,21 +136,58 @@ impl Cpu {
     pub fn parse_opcode(operation: u8) -> Opcode {
         match operation {
             0x00 => Opcode::NOP,
-            0x01 => Opcode::LD,
-            0x02 => Opcode::LD,
-            0x03 => Opcode::INC,
-            0x04 => Opcode::INC,
-            0x05 => Opcode::DEC,
-            0x06 => Opcode::LD,
+            0x01 => Opcode::LD(
+                OpTarget::Register(Register::BC),
+                OpTarget::Value(ValueType::u16),
+            ),
+            0x02 => Opcode::LD(
+                OpTarget::Value(ValueType::deref(Register::BC)),
+                OpTarget::Register(Register::A),
+            ),
+            0x03 => Opcode::INC(Register::BC),
+            0x04 => Opcode::INC(Register::B),
+            0x05 => Opcode::DEC(Register::B),
+            0x06 => Opcode::LD(
+                OpTarget::Register(Register::B),
+                OpTarget::Value(ValueType::u8),
+            ),
             0x07 => Opcode::RLCA,
-            0x08 => Opcode::LD,
-            0x09 => Opcode::ADD,
-            0x0A => Opcode::LD,
-            0x0B => Opcode::DEC,
-            0x0C => Opcode::INC,
-            0x0D => Opcode::DEC,
-            0x0E => Opcode::LD,
+            0x08 => Opcode::LD(
+                OpTarget::Value(ValueType::u16),
+                OpTarget::Register(Register::SP),
+            ),
+            0x09 => Opcode::ADD(
+                OpTarget::Register(Register::HL),
+                OpTarget::Register(Register::BC),
+            ),
+            0x0A => Opcode::LD(
+                OpTarget::Register(Register::A),
+                OpTarget::Value(ValueType::deref(Register::BC)),
+            ),
+            0x0B => Opcode::DEC(Register::BC),
+            0x0C => Opcode::INC(Register::C),
+            0x0D => Opcode::DEC(Register::C),
+            0x0E => Opcode::LD(
+                OpTarget::Register(Register::C),
+                OpTarget::Value(ValueType::u8),
+            ),
             0x0F => Opcode::RRCA,
+            0x10 => Opcode::STOP,
+            0x11 => Opcode::LD(
+                OpTarget::Register(Register::DE),
+                OpTarget::Value(ValueType::u16),
+            ),
+            0x12 => Opcode::LD(
+                OpTarget::Value(ValueType::deref(Register::DE)),
+                OpTarget::Register(Register::A),
+            ),
+            0x13 => Opcode::INC(Register::DE),
+            0x14 => Opcode::INC(Register::D),
+            0x15 => Opcode::DEC(Register::D),
+            0x16 => Opcode::LD(
+                OpTarget::Register(Register::D),
+                OpTarget::Value(ValueType::u8),
+            ),
             _ => todo!(),
         }
     }
