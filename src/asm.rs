@@ -4,7 +4,7 @@ use crate::memory::*;
 fn match_optarget(target: &OpTarget) -> (FieldLength, Option<Register>) {
     let dest_length: FieldLength;
     let mut dest_register: Option<Register> = None;
-    match target {
+    match *target {
         OpTarget::Register(reg) => match reg {
             Register::AF => {
                 dest_length = FieldLength::u16;
@@ -44,11 +44,7 @@ fn match_optarget(target: &OpTarget) -> (FieldLength, Option<Register>) {
             }
             Register::HL(m) => {
                 dest_length = FieldLength::u16;
-                dest_register = Some(Register::HL(match m {
-                    &HLMode::Normal => HLMode::Normal,
-                    &HLMode::Increment => HLMode::Increment,
-                    &HLMode::Decrement => HLMode::Decrement,
-                }))
+                dest_register = Some(Register::HL(m))
             }
             Register::H => {
                 dest_length = FieldLength::u8;
@@ -88,15 +84,12 @@ pub fn ld_operation(
     cpu: &mut Cpu,
     target1: OpTarget,
     target2: OpTarget,
-    byte_two: u8,
-    byte_three: u8,
+    mut byte_two: Option<u8>,
+    mut byte_three: Option<u8>,
     memory_map: &mut MemoryMap,
 ) {
-    let (dest_length, Some(dest_register)) = match_optarget(&target1) else {
-        panic!("dest_register in ld operation returned None");
-    };
-
-    let (source_length, source_register) = match_optarget(&target2);
+    let (dest_length, dest_register) = match_optarget(&target1);
+    let (source_length, _source_register) = match_optarget(&target2);
 
     let mut eight_bit_source_value: Option<u8> = None;
     let mut sixteen_bit_source_value: Option<u16> = None;
@@ -116,9 +109,18 @@ pub fn ld_operation(
                 _ => panic!("16 bit register given for 8 bit LD operation"),
             },
             OpTarget::Value(vt) => match vt {
-                ValueType::i8 => Some(byte_two),
-                ValueType::u8 => Some(byte_two),
-                ValueType::u16_deref => Some(memory_map.read((byte_two as u16) << byte_three)),
+                ValueType::i8 => byte_two,
+                ValueType::u8 => byte_two,
+                ValueType::u16_deref => Some(
+                    memory_map.read(
+                        (byte_two
+                            .expect("Byte two did not contain a value when read in LD operation")
+                            as u16)
+                            << byte_three.expect(
+                                "Byte three did not contain a value when read in LD operation",
+                            ),
+                    ),
+                ),
                 ValueType::deref(reg) => match reg {
                     Register::BC => {
                         Some(memory_map.read((cpu.registers.bc.b as u16) << cpu.registers.bc.c))
@@ -168,14 +170,14 @@ pub fn ld_operation(
                 _ => panic!("8 bit register given to 16 bit LD operation"),
             },
             OpTarget::Value(vt) => match vt {
-                ValueType::u16 => Some((byte_two as u16) << byte_three),
+                ValueType::u16 => Some((byte_two.unwrap() as u16) << byte_three.unwrap()),
                 _ => panic!("Invalid source value type sent to 16 bit LD operation)"),
             },
         },
     };
     match length {
         FieldLength::u8 => match target1 {
-            OpTarget::Register(_) => match dest_register {
+            OpTarget::Register(_) => match dest_register.expect("dest_register not set for register based 8 bit LD operation") {
                 Register::A => {
                     cpu.registers.af.accumulator = eight_bit_source_value
                         .expect("8bit source did not contain a value for 8bit LD operation")
@@ -214,13 +216,16 @@ pub fn ld_operation(
             _ => panic!("Invalid source given for 8bit LD operation"),
         },
         FieldLength::u16 => match target1 {
-            OpTarget::Register(_) => match dest_register {
+            OpTarget::Register(_) => match dest_register.expect("dest_register not set for register based 16 bit ld operation") {
                 Register::BC => cpu.registers.write_u16(
                     Register::BC,
                     sixteen_bit_source_value
                         .expect("16bit source did not contain a value for 16bit LD operation"),
                 ),
-                _ => todo!(),
+                Register::HL(_) => cpu.registers.write_u16(
+                    Register::HL(HLMode::Normal), sixteen_bit_source_value.expect("16bit source did not contain a value for 16bit LD operation"),
+                ),
+                _ => panic!("invalid optarget for 16 bit ld operation: {:?}", target1),
             },
             _ => todo!(),
         },

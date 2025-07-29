@@ -9,7 +9,7 @@ pub enum Mode {
     GBC,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum Register {
     AF,
     A,
@@ -28,13 +28,13 @@ pub enum Register {
     SPPlusi8,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum OpTarget {
     Register(Register),
     Value(ValueType),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
 pub enum ValueType {
     i8,
@@ -55,7 +55,7 @@ pub enum Condition {
     Z,
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug)]
 pub enum HLMode {
     Normal,
     Increment,
@@ -146,19 +146,19 @@ pub struct Registers {
 impl Registers {
     pub fn read_u16(&mut self, register: Register) -> u16 {
         match register {
-            Register::AF => (self.af.accumulator as u16) << self.af.flags.bits,
-            Register::BC => (self.bc.b as u16) << self.bc.c,
-            Register::DE => (self.de.d as u16) << self.de.e,
+            Register::AF => ((self.af.accumulator as u16) << 8) | (self.af.flags.bits as u16),
+            Register::BC => ((self.bc.b as u16) << 8) | (self.bc.c as u16),
+            Register::DE => ((self.de.d as u16) << 8) | (self.de.e as u16),
             Register::HL(hlm) => match hlm {
-                HLMode::Normal => (self.hl.h as u16) << self.hl.l,
+                HLMode::Normal => ((self.hl.h as u16) << 8) | (self.hl.l as u16),
                 HLMode::Increment => {
-                    let return_value = (self.hl.h as u16) << self.hl.l;
-                    self.hl.l += 1;
+                    let return_value = ((self.hl.h as u16) << 8) | (self.hl.l as u16);
+                    self.hl.l = self.hl.l.wrapping_add(1);
                     return_value
                 }
                 HLMode::Decrement => {
-                    let return_value = (self.hl.h as u16) << self.hl.l;
-                    self.hl.l -= 1;
+                    let return_value = ((self.hl.h as u16) << 8) | (self.hl.l as u16);
+                    self.hl.l = self.hl.l.wrapping_sub(1);
                     return_value
                 }
             },
@@ -167,6 +167,7 @@ impl Registers {
             _ => panic!("8 bit register given to 16 bit read operation"),
         }
     }
+
     pub fn write_u16(&mut self, register: Register, value: u16) {
         let low_byte = (&value >> 8) as u8;
         let high_byte = (&value & 0xFF) as u8;
@@ -266,9 +267,14 @@ impl Cpu {
         memory_map: &mut MemoryMap,
     ) {
         match operation {
-            Opcode::LD(target1, target2) => {
-                ld_operation(self, target1, target2, value1, value2, memory_map)
-            }
+            Opcode::LD(target1, target2) => ld_operation(
+                self,
+                target1,
+                target2,
+                Some(value1),
+                Some(value2),
+                memory_map,
+            ),
 
             _ => todo!(),
         }
