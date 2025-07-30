@@ -3,9 +3,11 @@ pub trait Memory {
     fn write(&mut self, address: u16, value: u8);
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct Rom0 {
     memory: [u8; 0x4000],
 }
+#[allow(dead_code)]
 impl Rom0 {
     pub fn new() -> Self {
         Self {
@@ -22,9 +24,11 @@ impl Memory for Rom0 {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct RomX {
     memory: [u8; 0x4000],
 }
+#[allow(dead_code)]
 impl RomX {
     pub fn new() -> Self {
         Self {
@@ -41,9 +45,11 @@ impl Memory for RomX {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct VRam {
     memory: [u8; 0x2000],
 }
+#[allow(dead_code)]
 impl VRam {
     pub fn new() -> Self {
         Self {
@@ -60,9 +66,11 @@ impl Memory for VRam {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct SRam {
     memory: [u8; 0x2000],
 }
+#[allow(dead_code)]
 impl SRam {
     pub fn new() -> Self {
         Self {
@@ -79,9 +87,11 @@ impl Memory for SRam {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct WRam0 {
     memory: [u8; 0x1000],
 }
+#[allow(dead_code)]
 impl WRam0 {
     pub fn new() -> Self {
         Self {
@@ -98,9 +108,11 @@ impl Memory for WRam0 {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct WRamX {
     memory: [u8; 0x1000],
 }
+#[allow(dead_code)]
 impl WRamX {
     pub fn new() -> Self {
         Self {
@@ -117,9 +129,11 @@ impl Memory for WRamX {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct Echo {
     memory: [u8; 0x1D00],
 }
+#[allow(dead_code)]
 impl Echo {
     pub fn new() -> Self {
         Self {
@@ -136,9 +150,11 @@ impl Memory for Echo {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct Aom {
     memory: [u8; 0xA0],
 }
+#[allow(dead_code)]
 impl Aom {
     pub fn new() -> Self {
         Self { memory: [0; 0xA0] }
@@ -153,9 +169,12 @@ impl Memory for Aom {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
+
 struct UnusedMemory {
     memory: [u8; 0x50],
 }
+#[allow(dead_code)]
 impl UnusedMemory {
     pub fn new() -> Self {
         Self { memory: [0; 0x50] }
@@ -170,9 +189,11 @@ impl Memory for UnusedMemory {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct IORegisters {
     memory: [u8; 0x80],
 }
+#[allow(dead_code)]
 impl IORegisters {
     pub fn new() -> Self {
         Self { memory: [0; 0x80] }
@@ -187,9 +208,11 @@ impl Memory for IORegisters {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct HRam {
     memory: [u8; 0x7F],
 }
+#[allow(dead_code)]
 impl HRam {
     pub fn new() -> Self {
         Self { memory: [0; 0x7F] }
@@ -204,9 +227,11 @@ impl Memory for HRam {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 struct IERegister {
     memory: [u8; 0x1],
 }
+#[allow(dead_code)]
 impl IERegister {
     pub fn new() -> Self {
         Self { memory: [0; 0x1] }
@@ -221,6 +246,7 @@ impl Memory for IERegister {
     }
 }
 
+#[derive(Copy, Clone, PartialEq)]
 pub struct MemoryMap {
     rom0: Rom0,
     romx: RomX,
@@ -271,6 +297,7 @@ impl Memory for MemoryMap {
     }
 }
 
+#[allow(dead_code)]
 impl MemoryMap {
     pub fn new() -> Self {
         MemoryMap {

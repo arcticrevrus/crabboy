@@ -1,15 +1,20 @@
-use crate::{
-    asm::*,
-    memory::{Memory, MemoryMap},
-};
+use crate::{asm::*, memory::Memory, memory::MemoryMap};
 
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
+#[allow(dead_code)]
 pub enum Mode {
     DMG,
     GBC,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum OpTarget {
+    Register(Register),
+    Value(ValueType),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[allow(dead_code)]
 pub enum Register {
     AF,
     A,
@@ -28,20 +33,21 @@ pub enum Register {
     SPPlusi8,
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum OpTarget {
+#[allow(clippy::upper_case_acronyms, non_camel_case_types)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DerefSource {
+    u16,
     Register(Register),
-    Value(ValueType),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
+#[allow(dead_code)]
 pub enum ValueType {
     i8,
     u8,
     u16,
-    deref(Register),
-    u16_deref,
+    deref(DerefSource),
     ff00_plus_u8_deref,
     ff00_plus_register_deref(Register),
 }
@@ -55,7 +61,7 @@ pub enum Condition {
     Z,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum HLMode {
     Normal,
     Increment,
@@ -76,10 +82,11 @@ pub enum RSTAddr {
 
 #[derive(Debug)]
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
+#[allow(dead_code)]
 pub enum Opcode {
     NOP,
     LD(OpTarget, OpTarget),
-    INC(Register),
+    INC(OpTarget),
     DEC(Register),
     ADD(Register, OpTarget),
     ADC(Register, OpTarget),
@@ -88,7 +95,7 @@ pub enum Opcode {
     AND(Register, OpTarget),
     XOR(Register, OpTarget),
     OR(Register, OpTarget),
-    CP(Register, OpTarget),
+    CP(OpTarget),
     STOP,
     RLCA,
     RRCA,
@@ -99,6 +106,7 @@ pub enum Opcode {
     CCF,
     JR(Condition, ValueType),
     RET(Condition),
+    CPL,
     RETI,
     JP(Condition, OpTarget),
     CALL(Condition, ValueType),
@@ -109,10 +117,12 @@ pub enum Opcode {
     EI,
     HALT,
     CB(CBPrefix),
+    PANIC,
 }
 
 #[derive(Debug)]
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
+#[allow(dead_code)]
 pub enum CBPrefix {
     RLC(OpTarget),
     RRC(OpTarget),
@@ -128,13 +138,16 @@ pub enum CBPrefix {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum OpLength {
+    None,
     One,
     Two,
     Three,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
+#[allow(dead_code)]
 pub struct Registers {
     pub af: AccumulatorAndFlags,
     pub bc: BAndC,
@@ -144,6 +157,7 @@ pub struct Registers {
     pub pc: ProgramCounter,
 }
 impl Registers {
+    #[allow(dead_code)]
     pub fn read_u16(&mut self, register: Register) -> u16 {
         match register {
             Register::AF => ((self.af.accumulator as u16) << 8) | (self.af.flags.bits as u16),
@@ -168,9 +182,10 @@ impl Registers {
         }
     }
 
+    #[allow(dead_code)]
     pub fn write_u16(&mut self, register: Register, value: u16) {
-        let low_byte = (&value >> 8) as u8;
-        let high_byte = (&value & 0xFF) as u8;
+        let high_byte = (&value >> 8) as u8;
+        let low_byte = (&value & 0xFF) as u8;
         match register {
             Register::AF => {
                 self.af.accumulator = high_byte;
@@ -200,22 +215,35 @@ impl Registers {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Operation {
-    opcode: Opcode,
-    length: OpLength,
-    value1: Option<u8>,
-    value2: Option<u8>,
+    pub opcode: Opcode,
+    pub length: OpLength,
+    pub value_one: Option<u8>,
+    pub value_two: Option<u8>,
+}
+impl Operation {
+    pub fn new(opcode: Opcode, length: OpLength) -> Operation {
+        Operation {
+            opcode,
+            length,
+            value_one: None,
+            value_two: None,
+        }
+    }
 }
 
 #[derive(PartialEq)]
+#[allow(non_camel_case_types)]
 pub enum FieldLength {
     u8,
     u16,
 }
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Cpu {
     pub registers: Registers,
 }
+#[allow(dead_code)]
 impl Cpu {
     pub fn new(mode: Mode) -> Self {
         match mode {
@@ -255,89 +283,139 @@ impl Cpu {
             },
         }
     }
-    pub fn execute(byte_one: u8, byte_two: Option<u8>, byte_three: Option<u8>) {
-        let opcode = parse_opcode(byte_one, byte_two);
+    fn get_next_byte(&mut self, memory: MemoryMap) -> u8 {
+        let value = memory.read(self.registers.pc.programcounter);
+        self.registers.pc.programcounter += 1;
+        value
     }
-
-    pub fn execute_operation(
-        &mut self,
-        operation: Opcode,
-        value1: u8,
-        value2: u8,
-        memory_map: &mut MemoryMap,
-    ) {
-        match operation {
+    fn get_next_operation(&mut self, memory: MemoryMap) -> Operation {
+        let opcode_byte = self.get_next_byte(memory);
+        let mut cb_byte = None;
+        if opcode_byte == 0xCB {
+            cb_byte = Some(self.get_next_byte(memory));
+        }
+        let mut operation = parse_opcode(opcode_byte, cb_byte);
+        match operation.opcode {
+            Opcode::CB(_) => (),
+            _ => match operation.length {
+                OpLength::None => panic!("Invalid operation returned from opcode parser"),
+                OpLength::One => (),
+                OpLength::Two => operation.value_one = Some(self.get_next_byte(memory)),
+                OpLength::Three => {
+                    operation.value_one = Some(self.get_next_byte(memory));
+                    operation.value_two = Some(self.get_next_byte(memory));
+                }
+            },
+        }
+        operation
+    }
+    pub fn execute_next_instruction(&mut self, memory: &mut MemoryMap) {
+        let operation = self.get_next_operation(*memory);
+        match operation.opcode {
             Opcode::LD(target1, target2) => ld_operation(
                 self,
                 target1,
                 target2,
-                Some(value1),
-                Some(value2),
-                memory_map,
+                operation.value_one,
+                operation.value_two,
+                memory,
             ),
-
+            Opcode::INC(target) => inc_operation(self, target, memory),
+            Opcode::NOP => nop_operation(),
+            Opcode::CP(target) => cp_operation(self, target, operation.value_one, *memory),
+            Opcode::JP(condition, target) => jp_operation(
+                self,
+                condition,
+                target,
+                operation.value_one,
+                operation.value_two,
+            ),
+            Opcode::RRA => rra_operation(self),
             _ => todo!(),
         }
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct AccumulatorAndFlags {
     pub accumulator: u8,
     pub flags: Flags,
 }
 
-#[derive(Debug)]
+pub enum Flag {
+    Z,
+    N,
+    H,
+    C,
+}
+
+#[derive(Debug, PartialEq)]
 pub struct Flags {
     pub bits: u8,
 }
+#[allow(dead_code)]
 impl Flags {
-    const Z: u8 = 0b1000_0000;
-    const N: u8 = 0b0100_0000;
-    const H: u8 = 0b0010_0000;
-    const C: u8 = 0b0001_0000;
-
     pub fn new() -> Self {
         Flags { bits: 0 }
     }
 
-    pub fn set(&mut self, flag: u8, value: bool) {
+    pub fn set(&mut self, flag: Flag, value: bool) {
+        const Z_BIT: u8 = 0b1000_0000;
+        const N_BIT: u8 = 0b0100_0000;
+        const H_BIT: u8 = 0b0010_0000;
+        const C_BIT: u8 = 0b0001_0000;
+        let flag_bit = match flag {
+            Flag::Z => Z_BIT,
+            Flag::N => N_BIT,
+            Flag::H => H_BIT,
+            Flag::C => C_BIT,
+        };
         if value {
-            self.bits |= flag;
+            self.bits |= flag_bit;
         } else {
-            self.bits &= !flag;
+            self.bits &= !flag_bit;
         }
     }
 
-    pub fn get(&self, flag: u8) -> bool {
-        (self.bits & flag) != 0
+    pub fn get(&self, flag: Flag) -> bool {
+        const Z_BIT: u8 = 0b1000_0000;
+        const N_BIT: u8 = 0b0100_0000;
+        const H_BIT: u8 = 0b0010_0000;
+        const C_BIT: u8 = 0b0001_0000;
+        let flag_bit = match flag {
+            Flag::Z => Z_BIT,
+            Flag::N => N_BIT,
+            Flag::H => H_BIT,
+            Flag::C => C_BIT,
+        };
+        (self.bits & flag_bit) != 0
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct BAndC {
     pub b: u8,
     pub c: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct DAndE {
     pub d: u8,
     pub e: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct HAndL {
     pub h: u8,
     pub l: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct StackPointer {
     pub stackpointer: u16,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct ProgramCounter {
     pub programcounter: u16,
 }
