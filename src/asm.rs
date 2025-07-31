@@ -498,7 +498,7 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0x07 => Operation::new(Opcode::RLCA, OpLength::One),
         0x08 => Operation::new(
             Opcode::LD(
-                OpTarget::Value(ValueType::u16),
+                OpTarget::Value(ValueType::deref(DerefSource::u16)),
                 OpTarget::Register(Register::SP),
             ),
             OpLength::Three,
@@ -649,7 +649,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         ),
         0x32 => Operation::new(
             Opcode::LD(
-                OpTarget::Register(Register::HL(HLMode::Decrement)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Decrement,
+                )))),
                 OpTarget::Register(Register::A),
             ),
             OpLength::One,
@@ -683,7 +685,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0x3A => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::A),
-                OpTarget::Register(Register::HL(HLMode::Decrement)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Decrement,
+                )))),
             ),
             OpLength::One,
         ),
@@ -801,7 +805,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0x4E => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::C),
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
             ),
             OpLength::One,
         ),
@@ -857,7 +863,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0x56 => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::D),
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
             ),
             OpLength::One,
         ),
@@ -913,7 +921,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0x5E => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::E),
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
             ),
             OpLength::One,
         ),
@@ -969,7 +979,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0x66 => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::H),
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
             ),
             OpLength::One,
         ),
@@ -1025,7 +1037,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0x6E => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::L),
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
             ),
             OpLength::One,
         ),
@@ -1047,35 +1061,45 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         ),
         0x71 => Operation::new(
             Opcode::LD(
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
                 OpTarget::Register(Register::C),
             ),
             OpLength::One,
         ),
         0x72 => Operation::new(
             Opcode::LD(
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
                 OpTarget::Register(Register::D),
             ),
             OpLength::One,
         ),
         0x73 => Operation::new(
             Opcode::LD(
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
                 OpTarget::Register(Register::E),
             ),
             OpLength::One,
         ),
         0x74 => Operation::new(
             Opcode::LD(
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
                 OpTarget::Register(Register::H),
             ),
             OpLength::One,
         ),
         0x75 => Operation::new(
             Opcode::LD(
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
                 OpTarget::Register(Register::L),
             ),
             OpLength::One,
@@ -1083,7 +1107,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0x76 => Operation::new(Opcode::HALT, OpLength::One),
         0x77 => Operation::new(
             Opcode::LD(
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
                 OpTarget::Register(Register::A),
             ),
             OpLength::One,
@@ -1133,7 +1159,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0x7E => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::A),
-                OpTarget::Register(Register::HL(HLMode::Normal)),
+                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
+                    HLMode::Normal,
+                )))),
             ),
             OpLength::One,
         ),
