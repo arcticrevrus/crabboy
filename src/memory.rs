@@ -1,250 +1,49 @@
+macro_rules! memory_region {
+    (
+        $name:ident,    // Struct name
+        $size:expr,     // Size of the memory array
+        $offset:expr    // Address offset
+    ) => {
+        #[derive(Copy, Clone, PartialEq)]
+        struct $name {
+            memory: [u8; $size],
+        }
+
+        impl $name {
+            pub fn new() -> Self {
+                Self { memory: [0; $size] }
+            }
+        }
+
+        impl Memory for $name {
+            fn read(&self, address: u16) -> u8 {
+                self.memory[(address - $offset) as usize]
+            }
+
+            fn write(&mut self, address: u16, value: u8) {
+                self.memory[(address - $offset) as usize] = value;
+            }
+        }
+    };
+}
+
 pub trait Memory {
     fn read(&self, address: u16) -> u8;
     fn write(&mut self, address: u16, value: u8);
 }
 
-#[derive(Copy, Clone, PartialEq)]
-struct Rom0 {
-    memory: [u8; 0x4000],
-}
-#[allow(dead_code)]
-impl Rom0 {
-    pub fn new() -> Self {
-        Self {
-            memory: [0; 0x4000],
-        }
-    }
-}
-impl Memory for Rom0 {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[address as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[address as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct RomX {
-    memory: [u8; 0x4000],
-}
-#[allow(dead_code)]
-impl RomX {
-    pub fn new() -> Self {
-        Self {
-            memory: [0; 0x4000],
-        }
-    }
-}
-impl Memory for RomX {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0x4000) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0x4000) as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct VRam {
-    memory: [u8; 0x2000],
-}
-#[allow(dead_code)]
-impl VRam {
-    pub fn new() -> Self {
-        Self {
-            memory: [0; 0x2000],
-        }
-    }
-}
-impl Memory for VRam {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0x8000) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0x8000) as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct SRam {
-    memory: [u8; 0x2000],
-}
-#[allow(dead_code)]
-impl SRam {
-    pub fn new() -> Self {
-        Self {
-            memory: [0; 0x2000],
-        }
-    }
-}
-impl Memory for SRam {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0xA000) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0xA000) as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct WRam0 {
-    memory: [u8; 0x1000],
-}
-#[allow(dead_code)]
-impl WRam0 {
-    pub fn new() -> Self {
-        Self {
-            memory: [0; 0x1000],
-        }
-    }
-}
-impl Memory for WRam0 {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0xC000) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0xC000) as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct WRamX {
-    memory: [u8; 0x1000],
-}
-#[allow(dead_code)]
-impl WRamX {
-    pub fn new() -> Self {
-        Self {
-            memory: [0; 0x1000],
-        }
-    }
-}
-impl Memory for WRamX {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0xD000) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0xD000) as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct Echo {
-    memory: [u8; 0x1D00],
-}
-#[allow(dead_code)]
-impl Echo {
-    pub fn new() -> Self {
-        Self {
-            memory: [0; 0x1D00],
-        }
-    }
-}
-impl Memory for Echo {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0xE000) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0xE000) as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct Aom {
-    memory: [u8; 0xA0],
-}
-#[allow(dead_code)]
-impl Aom {
-    pub fn new() -> Self {
-        Self { memory: [0; 0xA0] }
-    }
-}
-impl Memory for Aom {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0xFE00) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0xFE00) as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-
-struct UnusedMemory {
-    memory: [u8; 0x50],
-}
-#[allow(dead_code)]
-impl UnusedMemory {
-    pub fn new() -> Self {
-        Self { memory: [0; 0x50] }
-    }
-}
-impl Memory for UnusedMemory {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0xFEA0) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0xFEA0) as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct IORegisters {
-    memory: [u8; 0x80],
-}
-#[allow(dead_code)]
-impl IORegisters {
-    pub fn new() -> Self {
-        Self { memory: [0; 0x80] }
-    }
-}
-impl Memory for IORegisters {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0xFF00) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0xFF00) as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct HRam {
-    memory: [u8; 0x7F],
-}
-#[allow(dead_code)]
-impl HRam {
-    pub fn new() -> Self {
-        Self { memory: [0; 0x7F] }
-    }
-}
-impl Memory for HRam {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0xFF80) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0xFF80) as usize] = value;
-    }
-}
-
-#[derive(Copy, Clone, PartialEq)]
-struct IERegister {
-    memory: [u8; 0x1],
-}
-#[allow(dead_code)]
-impl IERegister {
-    pub fn new() -> Self {
-        Self { memory: [0; 0x1] }
-    }
-}
-impl Memory for IERegister {
-    fn read(&self, address: u16) -> u8 {
-        self.memory[(address - 0xFFFF) as usize]
-    }
-    fn write(&mut self, address: u16, value: u8) {
-        self.memory[(address - 0xFFFF) as usize] = value;
-    }
-}
+memory_region!(Rom0, 0x4000, 0x0000);
+memory_region!(RomX, 0x4000, 0x4000);
+memory_region!(VRam, 0x2000, 0x8000);
+memory_region!(SRam, 0x2000, 0xA000);
+memory_region!(WRam0, 0x1000, 0xC000);
+memory_region!(WRamX, 0x1000, 0xD000);
+memory_region!(Echo, 0x1D00, 0xE000);
+memory_region!(Aom, 0x00A0, 0xFE00);
+memory_region!(UnusedMemory, 0x0050, 0xFEA0);
+memory_region!(IORegisters, 0x0080, 0xFF00);
+memory_region!(HRam, 0x007F, 0xFF80);
+memory_region!(IERegister, 0x0001, 0xFFFF);
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct MemoryMap {
