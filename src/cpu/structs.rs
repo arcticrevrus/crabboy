@@ -78,6 +78,22 @@ pub struct ProgramCounter {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
+pub struct InterruptMasterEnable {
+    pub ime: bool,
+    pub has_waited: bool,
+}
+impl InterruptMasterEnable {
+    pub fn check_interrupts(cpu: &mut Cpu, memory: &mut MemoryMap) {
+        let interrupt_flags = memory.read(0xFFFF);
+        let joypad = interrupt_flags & 0b0001_0000;
+        let serial = interrupt_flags & 0b0000_1000;
+        let timer = interrupt_flags & 0b0000_0100;
+        let lcd = interrupt_flags & 0b0000_0010;
+        let vblank = interrupt_flags & 0b0000_0001;
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
 #[allow(dead_code)]
 pub struct Registers {
     pub af: AccumulatorAndFlags,
@@ -86,6 +102,7 @@ pub struct Registers {
     pub hl: HAndL,
     pub sp: StackPointer,
     pub pc: ProgramCounter,
+    pub ime: InterruptMasterEnable,
 }
 impl Registers {
     #[allow(dead_code)]

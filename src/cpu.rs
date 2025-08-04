@@ -34,6 +34,10 @@ impl Cpu {
                     pc: ProgramCounter {
                         programcounter: 0x0100,
                     },
+                    ime: InterruptMasterEnable {
+                        ime: false,
+                        has_waited: false,
+                    },
                 },
             },
             Mode::GBC => Cpu {
@@ -51,6 +55,10 @@ impl Cpu {
                     },
                     pc: ProgramCounter {
                         programcounter: 0x0100,
+                    },
+                    ime: InterruptMasterEnable {
+                        ime: false,
+                        has_waited: false,
                     },
                 },
             },
@@ -85,6 +93,12 @@ impl Cpu {
         operation
     }
     pub fn execute_next_instruction(&mut self, memory: &mut MemoryMap) {
+        if self.registers.ime.has_waited {
+            self.registers.ime.has_waited = false;
+        }
+        if self.registers.ime.ime {
+            self.registers.ime.has_waited = true;
+        }
         let operation = self.get_next_operation(*memory);
         let mut i8_value: Option<i8> = None;
         if operation.signed_value {
@@ -95,7 +109,9 @@ impl Cpu {
             )
         }
         match operation.opcode {
+            Opcode::DAA => daa_operation(self),
             Opcode::PANIC => crash(self),
+            Opcode::STOP => todo!(),
             Opcode::LD(target1, target2) => ld_operation(
                 self,
                 target1,
@@ -107,7 +123,10 @@ impl Cpu {
             Opcode::INC(target) => inc_operation(self, target, memory),
             Opcode::DEC(target) => dec_operation(self, target, memory),
             Opcode::NOP => nop_operation(),
-            Opcode::CP(target) => cp_operation(self, target, operation.value_one, *memory),
+            Opcode::CP(target) => cp_operation(self, target, operation.value_one, memory),
+            Opcode::CCF => ccf_operation(self),
+            Opcode::CPL => cpl_operation(self),
+            Opcode::SCF => scf_operation(self),
             Opcode::JP(condition, target) => jp_operation(
                 self,
                 condition,
@@ -115,7 +134,15 @@ impl Cpu {
                 operation.value_one,
                 operation.value_two,
             ),
+            Opcode::JR(condition, _) => jr_operation(
+                self,
+                condition,
+                operation
+                    .value_one
+                    .expect("No value given for JR operation") as i8,
+            ),
             Opcode::RRA => rra_operation(self),
+            Opcode::RLA => rla_operation(self),
             Opcode::RLCA => rlca_operation(self),
             Opcode::ADD(register, target2) => add_operation(
                 self,
@@ -125,6 +152,14 @@ impl Cpu {
                 i8_value,
                 memory,
             ),
+            Opcode::ADC(source) => adc_operation(self, source, operation.value_one, memory),
+            Opcode::SUB(source) => sub_operation(self, source, operation.value_one, memory),
+            Opcode::AND(source) => and_operation(self, source, operation.value_one, memory),
+            Opcode::XOR(source) => xor_operation(self, source, operation.value_one, memory),
+            Opcode::OR(source) => xor_operation(self, source, operation.value_one, memory),
+            Opcode::POP(register) => pop_operation(self, register, memory),
+            Opcode::RET(condition) => ret_operation(self, condition, memory),
+
             _ => todo!(),
         }
     }

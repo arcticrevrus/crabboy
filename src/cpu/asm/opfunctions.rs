@@ -1,4 +1,6 @@
-use crate::cpu::asm::*;
+use std::mem;
+
+use crate::{cpu::asm::*, memory};
 
 pub fn nop_operation() {}
 
@@ -6,7 +8,96 @@ pub fn crash(cpu: &mut Cpu) {
     cpu.is_running = false;
 }
 
-pub fn cp_operation(cpu: &mut Cpu, compare_target: OpTarget, value: Option<u8>, memory: MemoryMap) {
+pub fn pop_operation(cpu: &mut Cpu, register: Register, memory_map: &mut MemoryMap) {
+    let sp = OpTarget::Register(Register::SP);
+    match register {
+        Register::AF => {
+            cpu.registers.af.flags.bits = memory_map.read(cpu.registers.sp.stackpointer);
+            inc_operation(cpu, sp, memory_map);
+            cpu.registers.af.accumulator = memory_map.read(cpu.registers.sp.stackpointer);
+            inc_operation(cpu, sp, memory_map);
+            todo!("Set the cpu flags for POP AF");
+        }
+        Register::BC => {
+            cpu.registers.bc.c = memory_map.read(cpu.registers.sp.stackpointer);
+            inc_operation(cpu, sp, memory_map);
+            cpu.registers.bc.b = memory_map.read(cpu.registers.sp.stackpointer);
+            inc_operation(cpu, sp, memory_map);
+        }
+        Register::DE => {
+            cpu.registers.de.e = memory_map.read(cpu.registers.sp.stackpointer);
+            inc_operation(cpu, sp, memory_map);
+            cpu.registers.de.d = memory_map.read(cpu.registers.sp.stackpointer);
+            inc_operation(cpu, sp, memory_map);
+        }
+        Register::HL(HLMode::Normal) => {
+            cpu.registers.hl.l = memory_map.read(cpu.registers.sp.stackpointer);
+            inc_operation(cpu, sp, memory_map);
+            cpu.registers.hl.h = memory_map.read(cpu.registers.sp.stackpointer);
+            inc_operation(cpu, sp, memory_map);
+        }
+        _ => panic!("Invalid register given for POP operation"),
+    };
+}
+
+pub fn ret_operation(cpu: &mut Cpu, condition: Condition, memory_map: &mut MemoryMap) {
+    match condition {
+        Condition::C => {
+            if !cpu.registers.af.flags.get(Flag::C) {
+                return;
+            }
+        }
+        Condition::NC => {
+            if cpu.registers.af.flags.get(Flag::C) {
+                return;
+            }
+        }
+        Condition::Z => {
+            if !cpu.registers.af.flags.get(Flag::Z) {
+                return;
+            }
+        }
+        Condition::NZ => {
+            if cpu.registers.af.flags.get(Flag::Z) {
+                return;
+            }
+        }
+        Condition::None => (),
+    }
+    let sp = OpTarget::Register(Register::SP);
+    let low_byte = memory_map.read(cpu.registers.sp.stackpointer);
+    inc_operation(cpu, sp, memory_map);
+    let high_byte = memory_map.read(cpu.registers.sp.stackpointer);
+    inc_operation(cpu, sp, memory_map);
+    cpu.registers.sp.stackpointer = (high_byte as u16) << 8 | low_byte as u16;
+}
+
+pub fn daa_operation(cpu: &mut Cpu) {
+    let mut adjustment: u8 = 0;
+    if cpu.registers.af.flags.get(Flag::N) {
+        if cpu.registers.af.flags.get(Flag::H) {
+            adjustment += 0x6;
+        }
+        if cpu.registers.af.flags.get(Flag::C) {
+            adjustment += 0x60;
+        }
+    } else {
+        if cpu.registers.af.flags.get(Flag::H) || cpu.registers.af.accumulator & 0x0F > 0x09 {
+            adjustment += 0x6;
+        }
+        if cpu.registers.af.flags.get(Flag::C) || cpu.registers.af.accumulator > 0x99 {
+            adjustment += 0x60;
+        }
+    }
+    cpu.registers.af.accumulator = cpu.registers.af.accumulator.wrapping_sub(adjustment);
+}
+
+pub fn cp_operation(
+    cpu: &mut Cpu,
+    compare_target: OpTarget,
+    value: Option<u8>,
+    memory: &MemoryMap,
+) {
     let a_register_value = cpu.registers.af.accumulator;
     let target_value = match compare_target {
         OpTarget::Register(register) => match register {
@@ -42,24 +133,65 @@ pub fn cp_operation(cpu: &mut Cpu, compare_target: OpTarget, value: Option<u8>, 
         .set(Flag::C, a_register_value < target_value);
 }
 
+pub fn cpl_operation(cpu: &mut Cpu) {
+    let accumulator = cpu.registers.af.accumulator;
+    cpu.registers.af.accumulator = !accumulator;
+    cpu.registers.af.flags.set(Flag::N, true);
+    cpu.registers.af.flags.set(Flag::H, true);
+}
+
+pub fn scf_operation(cpu: &mut Cpu) {
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers.af.flags.set(Flag::H, false);
+    cpu.registers.af.flags.set(Flag::C, true);
+}
+
+pub fn ccf_operation(cpu: &mut Cpu) {
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers.af.flags.set(Flag::H, false);
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::C, !cpu.registers.af.flags.get(Flag::C));
+}
+
 #[inline]
-fn carry_8(a: u8, b: u8) -> bool {
+fn carry_add_8(a: u8, b: u8) -> bool {
     (a as u16 + b as u16) > 0xFF
 }
 
 #[inline]
-fn carry_16(a: u16, b: u16) -> bool {
+fn carry_sub_8(a: u8, b: u8) -> bool {
+    a < b
+}
+
+#[inline]
+fn carry_add_16(a: u16, b: u16) -> bool {
     (a as u32 + b as u32) > 0xFFFF
 }
 
 #[inline]
-fn half_carry_8(a: u8, b: u8) -> bool {
-    ((a & 0x0F) + (b & 0x0F)) > 0x0F
+fn carry_sub_16(a: u16, b: u16) -> bool {
+    a < b
 }
 
 #[inline]
-fn half_carry_16(a: u16, b: u16) -> bool {
+fn half_add_carry_8(a: u8, b: u8) -> bool {
+    ((a & 0x0F) + (b & 0x0F)) > 0x0F
+}
+
+fn half_carry_sub_8(a: u8, b: u8) -> bool {
+    (a & 0x0F) < (b & 0x0F)
+}
+
+#[inline]
+fn half_add_carry_16(a: u16, b: u16) -> bool {
     ((a & 0x0FFF) + (b & 0x0FFF)) > 0x0FFF
+}
+
+#[inline]
+fn half_sub_carry_16(a: u16, b: u16) -> bool {
+    (a & 0x00FF) < (b & 0x00FF)
 }
 
 pub fn add_operation(
@@ -87,7 +219,7 @@ pub fn add_operation(
             }
             ValueType::u8 => u8_value,
             ValueType::i8 => {
-                Some(i8_value.expect("No value egiven for i8 valuetype in add operation") as u8)
+                Some(i8_value.expect("No value given for i8 valuetype in add operation") as u8)
             }
             _ => None,
         },
@@ -135,11 +267,11 @@ pub fn add_operation(
                     cpu.registers
                         .af
                         .flags
-                        .set(Flag::C, carry_8(old_accumulator, value));
+                        .set(Flag::C, carry_add_8(old_accumulator, value));
                     cpu.registers
                         .af
                         .flags
-                        .set(Flag::H, half_carry_8(old_accumulator, value));
+                        .set(Flag::H, half_add_carry_8(old_accumulator, value));
                     cpu.registers
                         .af
                         .flags
@@ -161,18 +293,57 @@ pub fn add_operation(
             cpu.registers
                 .af
                 .flags
-                .set(Flag::H, half_carry_16(hl_value, src_value));
+                .set(Flag::H, half_add_carry_16(hl_value, src_value));
             cpu.registers
                 .af
                 .flags
-                .set(Flag::C, carry_16(hl_value, src_value));
+                .set(Flag::C, carry_add_16(hl_value, src_value));
             cpu.registers.af.flags.set(Flag::N, false);
         }
         _ => panic!("Invalid register given for 16 bit add"),
     }
 }
 
-#[allow(dead_code)]
+pub fn adc_operation(
+    cpu: &mut Cpu,
+    value_source: OpTarget,
+    u8_value: Option<u8>,
+    memory_map: &mut MemoryMap,
+) {
+    let value = match value_source {
+        OpTarget::Register(register) => match register {
+            Register::A => cpu.registers.af.accumulator,
+            Register::B => cpu.registers.bc.b,
+            Register::C => cpu.registers.bc.c,
+            Register::D => cpu.registers.de.d,
+            Register::E => cpu.registers.de.e,
+            Register::H => cpu.registers.hl.h,
+            Register::L => cpu.registers.hl.l,
+            _ => panic!("16 source bit register given to ADC operation"),
+        },
+        OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(HLMode::Normal)))) => {
+            memory_map.read(cpu.registers.read_u16(Register::HL(HLMode::Normal)))
+        }
+        OpTarget::Value(ValueType::u8) => u8_value.expect("No value given for ADC A,u8 operation"),
+        _ => panic!("Invalid optarget given for adc operation"),
+    };
+    let original_accumulator = cpu.registers.af.accumulator;
+    let total = cpu.registers.af.accumulator.wrapping_add(value);
+    if total == 0 {
+        cpu.registers.af.flags.set(Flag::Z, false);
+    }
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::H, half_add_carry_8(original_accumulator, value));
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::C, carry_add_8(original_accumulator, value));
+    cpu.registers.af.accumulator = total;
+}
+
 pub fn dec_operation(cpu: &mut Cpu, target: OpTarget, memory_map: &mut MemoryMap) {
     match target {
         OpTarget::Register(register) => match register {
@@ -216,7 +387,144 @@ pub fn dec_operation(cpu: &mut Cpu, target: OpTarget, memory_map: &mut MemoryMap
     }
 }
 
-#[allow(dead_code)]
+pub fn sub_operation(
+    cpu: &mut Cpu,
+    target: OpTarget,
+    value: Option<u8>,
+    memory_map: &mut MemoryMap,
+) {
+    let accumulator = cpu.registers.af.accumulator;
+    let value = match target {
+        OpTarget::Register(register) => match register {
+            Register::A => cpu.registers.af.accumulator,
+            Register::B => cpu.registers.bc.b,
+            Register::C => cpu.registers.bc.c,
+            Register::D => cpu.registers.de.d,
+            Register::E => cpu.registers.de.e,
+            Register::H => cpu.registers.hl.h,
+            Register::L => cpu.registers.hl.l,
+            _ => panic!("16 bit register given for SUB operation target"),
+        },
+        OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(HLMode::Normal)))) => {
+            memory_map.read(cpu.registers.read_u16(Register::HL(HLMode::Normal)))
+        }
+        OpTarget::Value(ValueType::u8) => value.expect("No value given for SUB A,u8"),
+        _ => panic!("Invalid OpTarget for SUB operation"),
+    };
+    cpu.registers.af.flags.set(Flag::Z, accumulator == value);
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::H, half_carry_sub_8(accumulator, value));
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::C, carry_sub_8(accumulator, value));
+    cpu.registers.af.accumulator = value;
+}
+
+pub fn and_operation(
+    cpu: &mut Cpu,
+    target: OpTarget,
+    value: Option<u8>,
+    memory_map: &mut MemoryMap,
+) {
+    let value = match target {
+        OpTarget::Register(register) => match register {
+            Register::A => cpu.registers.af.accumulator,
+            Register::B => cpu.registers.bc.b,
+            Register::C => cpu.registers.bc.c,
+            Register::D => cpu.registers.de.d,
+            Register::E => cpu.registers.de.e,
+            Register::H => cpu.registers.hl.h,
+            Register::L => cpu.registers.hl.l,
+            _ => panic!("16 bit register given as source for AND operation"),
+        },
+        OpTarget::Value(ValueType::u8) => value.expect("No value given for AND A,u8 operation"),
+        OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(HLMode::Normal)))) => {
+            memory_map.read(cpu.registers.read_u16(Register::HL(HLMode::Normal)))
+        }
+        _ => panic!("Invalid source given for AND operation"),
+    };
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::Z, cpu.registers.af.accumulator == value);
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers.af.flags.set(Flag::H, true);
+    cpu.registers.af.flags.set(Flag::C, false);
+    cpu.registers.af.accumulator &= value;
+}
+
+pub fn xor_operation(
+    cpu: &mut Cpu,
+    target: OpTarget,
+    value: Option<u8>,
+    memory_map: &mut MemoryMap,
+) {
+    let value = match target {
+        OpTarget::Register(register) => match register {
+            Register::A => cpu.registers.af.accumulator,
+            Register::B => cpu.registers.bc.b,
+            Register::C => cpu.registers.bc.c,
+            Register::D => cpu.registers.de.d,
+            Register::E => cpu.registers.de.e,
+            Register::H => cpu.registers.hl.h,
+            Register::L => cpu.registers.hl.l,
+            _ => panic!("16 bit register given as source for XOR operation"),
+        },
+        OpTarget::Value(ValueType::u8) => value.expect("No value given for XOR A,u8 operation"),
+        OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(HLMode::Normal)))) => {
+            memory_map.read(cpu.registers.read_u16(Register::HL(HLMode::Normal)))
+        }
+        _ => panic!("Invalid source given for XOR operation"),
+    };
+    cpu.registers.af.accumulator ^= value;
+
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::Z, cpu.registers.af.accumulator != 0);
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers.af.flags.set(Flag::H, false);
+    cpu.registers.af.flags.set(Flag::C, false);
+}
+
+pub fn or_operation(
+    cpu: &mut Cpu,
+    target: OpTarget,
+    value: Option<u8>,
+    memory_map: &mut MemoryMap,
+) {
+    let value = match target {
+        OpTarget::Register(register) => match register {
+            Register::A => cpu.registers.af.accumulator,
+            Register::B => cpu.registers.bc.b,
+            Register::C => cpu.registers.bc.c,
+            Register::D => cpu.registers.de.d,
+            Register::E => cpu.registers.de.e,
+            Register::H => cpu.registers.hl.h,
+            Register::L => cpu.registers.hl.l,
+            _ => panic!("16 bit register given as source for OR operation"),
+        },
+        OpTarget::Value(ValueType::u8) => value.expect("No value given for OR A,u8 operation"),
+        OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(HLMode::Normal)))) => {
+            memory_map.read(cpu.registers.read_u16(Register::HL(HLMode::Normal)))
+        }
+        _ => panic!("Invalid source given for OR operation"),
+    };
+    cpu.registers.af.accumulator |= value;
+
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::Z, cpu.registers.af.accumulator != 0);
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers.af.flags.set(Flag::H, false);
+    cpu.registers.af.flags.set(Flag::C, false);
+}
+
 pub fn inc_operation(cpu: &mut Cpu, target: OpTarget, memory_map: &mut MemoryMap) {
     match target {
         OpTarget::Register(register) => match register {
@@ -273,6 +581,19 @@ pub fn rra_operation(cpu: &mut Cpu) {
     cpu.registers.af.flags.set(Flag::H, false);
 }
 
+pub fn rla_operation(cpu: &mut Cpu) {
+    let old_carry = cpu.registers.af.flags.get(Flag::C) as u8;
+    let old_bit8 = cpu.registers.af.accumulator >> 0x07;
+
+    cpu.registers.af.accumulator >>= 1;
+    cpu.registers.af.accumulator |= old_carry << 7;
+
+    cpu.registers.af.flags.set(Flag::C, old_bit8 != 0);
+    cpu.registers.af.flags.set(Flag::Z, false);
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers.af.flags.set(Flag::H, false);
+}
+
 pub fn rlca_operation(cpu: &mut Cpu) {
     let old_bit8 = cpu.registers.af.accumulator >> 0x07;
     cpu.registers.af.accumulator <<= 0x01;
@@ -281,6 +602,37 @@ pub fn rlca_operation(cpu: &mut Cpu) {
     cpu.registers.af.flags.set(Flag::Z, false);
     cpu.registers.af.flags.set(Flag::N, false);
     cpu.registers.af.flags.set(Flag::H, false);
+}
+
+pub fn jr_operation(cpu: &mut Cpu, condition: Condition, value: i8) {
+    match condition {
+        Condition::Z => {
+            if !cpu.registers.af.flags.get(Flag::Z) {
+                return;
+            }
+        }
+        Condition::NZ => {
+            if cpu.registers.af.flags.get(Flag::Z) {
+                return;
+            }
+        }
+        Condition::C => {
+            if !cpu.registers.af.flags.get(Flag::C) {
+                return;
+            }
+        }
+        Condition::NC => {
+            if cpu.registers.af.flags.get(Flag::C) {
+                return;
+            }
+        }
+        Condition::None => (),
+    }
+    cpu.registers.pc.programcounter = cpu
+        .registers
+        .pc
+        .programcounter
+        .wrapping_add_signed(value as i16);
 }
 
 pub fn jp_operation(
@@ -326,6 +678,7 @@ pub fn jp_operation(
     };
     cpu.registers.write_u16(Register::PC, value)
 }
+
 pub fn ld_operation(
     cpu: &mut Cpu,
     target1: OpTarget,
