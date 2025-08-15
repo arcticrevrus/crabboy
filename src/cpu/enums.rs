@@ -41,6 +41,7 @@ pub enum Register {
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum DerefSource {
+    u8,
     u16,
     Register(Register),
 }
@@ -53,8 +54,7 @@ pub enum ValueType {
     u8,
     u16,
     deref(DerefSource),
-    ff00_plus_u8_deref,
-    ff00_plus_register_deref(Register),
+    ff00_plus_deref(DerefSource),
 }
 
 #[derive(Debug)]
@@ -87,7 +87,6 @@ pub enum RSTAddr {
 
 #[derive(Debug)]
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
-#[allow(dead_code)]
 pub enum Opcode {
     NOP,
     LD(OpTarget, OpTarget),
@@ -96,7 +95,7 @@ pub enum Opcode {
     ADD(Register, OpTarget),
     ADC(OpTarget),
     SUB(OpTarget),
-    SBC(Register, OpTarget),
+    SBC(OpTarget),
     AND(OpTarget),
     XOR(OpTarget),
     OR(OpTarget),
@@ -109,12 +108,12 @@ pub enum Opcode {
     DAA,
     SCF,
     CCF,
-    JR(Condition, ValueType),
+    JR(Condition),
     RET(Condition),
     CPL,
     RETI,
     JP(Condition, OpTarget),
-    CALL(Condition, ValueType),
+    CALL(Condition),
     RST(RSTAddr),
     POP(Register),
     PUSH(Register),

@@ -94,9 +94,8 @@ fn match_optarget(target: &OpTarget) -> (FieldLength, Option<Register>) {
             ValueType::i8 => dest_length = FieldLength::u8,
             ValueType::u8 => dest_length = FieldLength::u8,
             ValueType::u16 => dest_length = FieldLength::u16,
-            ValueType::ff00_plus_u8_deref => dest_length = FieldLength::u16,
+            ValueType::ff00_plus_deref(_) => dest_length = FieldLength::u16,
             ValueType::deref(_) => dest_length = FieldLength::u8,
-            ValueType::ff00_plus_register_deref(_) => dest_length = FieldLength::u16,
         },
     };
     (dest_length, dest_register)

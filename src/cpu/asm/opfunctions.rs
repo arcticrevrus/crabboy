@@ -1,11 +1,60 @@
-use std::mem;
-
-use crate::{cpu::asm::*, memory};
+use crate::cpu::asm::*;
 
 pub fn nop_operation() {}
 
 pub fn crash(cpu: &mut Cpu) {
     cpu.is_running = false;
+}
+
+pub fn di_operation(cpu: &mut Cpu) {
+    cpu.registers.ime.ime = false
+}
+
+pub fn ei_operation(cpu: &mut Cpu) {
+    cpu.registers.ime.ime = true
+}
+
+pub fn halt_operation(cpu: &mut Cpu) {
+    match cpu.registers.ime.ime {
+        true => cpu.is_running = false,
+        false => todo!(),
+    }
+}
+
+pub fn push_operation(cpu: &mut Cpu, source: Register, memory_map: &mut MemoryMap) {
+    match source {
+        Register::AF => {
+            cpu.registers.sp.stackpointer = cpu.registers.sp.stackpointer.wrapping_sub(1);
+            memory_map.write(
+                cpu.registers.read_u16(Register::SP),
+                cpu.registers.af.accumulator,
+            );
+            cpu.registers.sp.stackpointer = cpu.registers.sp.stackpointer.wrapping_sub(1);
+            memory_map.write(
+                cpu.registers.read_u16(Register::SP),
+                cpu.registers.af.flags.bits,
+            )
+        }
+        Register::BC => {
+            cpu.registers.sp.stackpointer = cpu.registers.sp.stackpointer.wrapping_sub(1);
+            memory_map.write(cpu.registers.read_u16(Register::SP), cpu.registers.bc.b);
+            cpu.registers.sp.stackpointer = cpu.registers.sp.stackpointer.wrapping_sub(1);
+            memory_map.write(cpu.registers.read_u16(Register::SP), cpu.registers.bc.c)
+        }
+        Register::DE => {
+            cpu.registers.sp.stackpointer = cpu.registers.sp.stackpointer.wrapping_sub(1);
+            memory_map.write(cpu.registers.read_u16(Register::SP), cpu.registers.de.d);
+            cpu.registers.sp.stackpointer = cpu.registers.sp.stackpointer.wrapping_sub(1);
+            memory_map.write(cpu.registers.read_u16(Register::SP), cpu.registers.de.e)
+        }
+        Register::HL(HLMode::Normal) => {
+            cpu.registers.sp.stackpointer = cpu.registers.sp.stackpointer.wrapping_sub(1);
+            memory_map.write(cpu.registers.read_u16(Register::SP), cpu.registers.hl.h);
+            cpu.registers.sp.stackpointer = cpu.registers.sp.stackpointer.wrapping_sub(1);
+            memory_map.write(cpu.registers.read_u16(Register::SP), cpu.registers.hl.l)
+        }
+        _ => panic!("Invalid Register given to PUSH operation"),
+    }
 }
 
 pub fn pop_operation(cpu: &mut Cpu, register: Register, memory_map: &mut MemoryMap) {
@@ -40,29 +89,58 @@ pub fn pop_operation(cpu: &mut Cpu, register: Register, memory_map: &mut MemoryM
     };
 }
 
+pub fn call_operation(
+    cpu: &mut Cpu,
+    condition: Condition,
+    value_one: Option<u8>,
+    value_two: Option<u8>,
+    memory_map: &mut MemoryMap,
+) {
+    let value_one = value_one.expect("No value given for CALL operation");
+    let value_two = value_two.expect("8 bit value given for 16 bit CALL operation");
+    let target = (value_one as u16) << 8 | value_two as u16;
+    match condition {
+        Condition::C if !cpu.registers.af.flags.get(Flag::C) => return,
+        Condition::NC if cpu.registers.af.flags.get(Flag::C) => return,
+        Condition::Z if !cpu.registers.af.flags.get(Flag::Z) => return,
+        Condition::NZ if cpu.registers.af.flags.get(Flag::Z) => return,
+        _ => (),
+    }
+
+    let [pc_high_byte, pc_low_byte] = cpu.registers.read_u16(Register::PC).to_be_bytes();
+    cpu.registers.sp.stackpointer -= 1;
+    memory_map.write(cpu.registers.sp.stackpointer, pc_high_byte);
+    cpu.registers.sp.stackpointer -= 1;
+    memory_map.write(cpu.registers.sp.stackpointer, pc_low_byte);
+    cpu.registers.write_u16(Register::PC, target)
+}
+
+pub fn rst_operation(cpu: &mut Cpu, target: RSTAddr, memory_map: &mut MemoryMap) {
+    let target_value: u16 = match target {
+        RSTAddr::H00 => 0x0000,
+        RSTAddr::H08 => 0x0008,
+        RSTAddr::H10 => 0x0010,
+        RSTAddr::H18 => 0x0018,
+        RSTAddr::H20 => 0x0020,
+        RSTAddr::H28 => 0x0028,
+        RSTAddr::H30 => 0x0030,
+        RSTAddr::H38 => 0x0038,
+    };
+    let [pc_high_byte, pc_low_byte] = cpu.registers.read_u16(Register::PC).to_be_bytes();
+    cpu.registers.sp.stackpointer -= 1;
+    memory_map.write(cpu.registers.sp.stackpointer, pc_high_byte);
+    cpu.registers.sp.stackpointer -= 1;
+    memory_map.write(cpu.registers.sp.stackpointer, pc_low_byte);
+    cpu.registers.write_u16(Register::PC, target_value);
+}
+
 pub fn ret_operation(cpu: &mut Cpu, condition: Condition, memory_map: &mut MemoryMap) {
     match condition {
-        Condition::C => {
-            if !cpu.registers.af.flags.get(Flag::C) {
-                return;
-            }
-        }
-        Condition::NC => {
-            if cpu.registers.af.flags.get(Flag::C) {
-                return;
-            }
-        }
-        Condition::Z => {
-            if !cpu.registers.af.flags.get(Flag::Z) {
-                return;
-            }
-        }
-        Condition::NZ => {
-            if cpu.registers.af.flags.get(Flag::Z) {
-                return;
-            }
-        }
-        Condition::None => (),
+        Condition::C if !cpu.registers.af.flags.get(Flag::C) => return,
+        Condition::NC if cpu.registers.af.flags.get(Flag::C) => return,
+        Condition::Z if !cpu.registers.af.flags.get(Flag::Z) => return,
+        Condition::NZ if cpu.registers.af.flags.get(Flag::Z) => return,
+        _ => (),
     }
     let sp = OpTarget::Register(Register::SP);
     let low_byte = memory_map.read(cpu.registers.sp.stackpointer);
@@ -70,6 +148,16 @@ pub fn ret_operation(cpu: &mut Cpu, condition: Condition, memory_map: &mut Memor
     let high_byte = memory_map.read(cpu.registers.sp.stackpointer);
     inc_operation(cpu, sp, memory_map);
     cpu.registers.sp.stackpointer = (high_byte as u16) << 8 | low_byte as u16;
+}
+
+pub fn reti_operation(cpu: &mut Cpu, memory_map: &mut MemoryMap) {
+    let sp = OpTarget::Register(Register::SP);
+    let low_byte = memory_map.read(cpu.registers.sp.stackpointer);
+    inc_operation(cpu, sp, memory_map);
+    let high_byte = memory_map.read(cpu.registers.sp.stackpointer);
+    inc_operation(cpu, sp, memory_map);
+    cpu.registers.sp.stackpointer = (high_byte as u16) << 8 | low_byte as u16;
+    cpu.registers.ime.ime = true;
 }
 
 pub fn daa_operation(cpu: &mut Cpu) {
@@ -329,9 +417,7 @@ pub fn adc_operation(
     };
     let original_accumulator = cpu.registers.af.accumulator;
     let total = cpu.registers.af.accumulator.wrapping_add(value);
-    if total == 0 {
-        cpu.registers.af.flags.set(Flag::Z, false);
-    }
+    cpu.registers.af.flags.set(Flag::Z, total == 0);
     cpu.registers.af.flags.set(Flag::N, false);
     cpu.registers
         .af
@@ -341,6 +427,44 @@ pub fn adc_operation(
         .af
         .flags
         .set(Flag::C, carry_add_8(original_accumulator, value));
+    cpu.registers.af.accumulator = total;
+}
+
+pub fn sbc_operation(
+    cpu: &mut Cpu,
+    value_source: OpTarget,
+    u8_value: Option<u8>,
+    memory_map: &mut MemoryMap,
+) {
+    let value = match value_source {
+        OpTarget::Register(register) => match register {
+            Register::A => cpu.registers.af.accumulator,
+            Register::B => cpu.registers.bc.b,
+            Register::C => cpu.registers.bc.c,
+            Register::D => cpu.registers.de.d,
+            Register::E => cpu.registers.de.e,
+            Register::H => cpu.registers.hl.h,
+            Register::L => cpu.registers.hl.l,
+            _ => panic!("16 source bit register given to SBC operation"),
+        },
+        OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(HLMode::Normal)))) => {
+            memory_map.read(cpu.registers.read_u16(Register::HL(HLMode::Normal)))
+        }
+        OpTarget::Value(ValueType::u8) => u8_value.expect("No value given for SBC A,u8 operation"),
+        _ => panic!("Invalid optarget given for SBC operation"),
+    };
+    let original_accumulator = cpu.registers.af.accumulator;
+    let total = cpu.registers.af.accumulator.wrapping_sub(value);
+    cpu.registers.af.flags.set(Flag::Z, total == 0);
+    cpu.registers.af.flags.set(Flag::N, true);
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::H, half_carry_sub_8(original_accumulator, value));
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::C, carry_sub_8(original_accumulator, value));
     cpu.registers.af.accumulator = total;
 }
 
@@ -581,6 +705,54 @@ pub fn rra_operation(cpu: &mut Cpu) {
     cpu.registers.af.flags.set(Flag::H, false);
 }
 
+pub fn rrc_operation(cpu: &mut Cpu, target: OpTarget, memory_map: &mut MemoryMap) {
+    match target {
+        OpTarget::Register(register) => {
+            let source = match register {
+                Register::A => &mut cpu.registers.af.accumulator,
+                Register::B => &mut cpu.registers.bc.b,
+                Register::C => &mut cpu.registers.bc.c,
+                Register::D => &mut cpu.registers.de.d,
+                Register::E => &mut cpu.registers.de.e,
+                Register::H => &mut cpu.registers.hl.h,
+                Register::L => &mut cpu.registers.hl.l,
+                _ => panic!("Invalid register given to RRC instruction"),
+            };
+            let old_bit0 = *source & 0x01;
+            *source >>= 1;
+            *source |= old_bit0 << 7;
+            cpu.registers.af.flags.set(Flag::C, old_bit0 != 0);
+            if *source == 0 {
+                cpu.registers.af.flags.set(Flag::Z, true)
+            }
+        }
+        OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(HLMode::Normal)))) => {
+            let addr = cpu.registers.read_u16(Register::HL(HLMode::Normal));
+            let val = memory_map.read(addr);
+            let old_bit0 = val & 0x01;
+            let new_val = (val >> 1) | (old_bit0 << 7);
+            memory_map.write(addr, new_val);
+            cpu.registers.af.flags.set(Flag::C, old_bit0 != 0);
+            cpu.registers.af.flags.set(Flag::Z, new_val == 0);
+        }
+        _ => panic!("Invalid target given to RRC instruction"),
+    };
+
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers.af.flags.set(Flag::H, false);
+}
+
+pub fn rrca_operation(cpu: &mut Cpu) {
+    let old_bit0 = cpu.registers.af.accumulator & 0x1;
+
+    cpu.registers.af.accumulator >>= 1;
+    cpu.registers.af.accumulator |= old_bit0 << 7;
+    cpu.registers.af.flags.set(Flag::C, old_bit0 != 0);
+    cpu.registers.af.flags.set(Flag::Z, false);
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers.af.flags.set(Flag::H, false);
+}
+
 pub fn rla_operation(cpu: &mut Cpu) {
     let old_carry = cpu.registers.af.flags.get(Flag::C) as u8;
     let old_bit8 = cpu.registers.af.accumulator >> 0x07;
@@ -606,27 +778,11 @@ pub fn rlca_operation(cpu: &mut Cpu) {
 
 pub fn jr_operation(cpu: &mut Cpu, condition: Condition, value: i8) {
     match condition {
-        Condition::Z => {
-            if !cpu.registers.af.flags.get(Flag::Z) {
-                return;
-            }
-        }
-        Condition::NZ => {
-            if cpu.registers.af.flags.get(Flag::Z) {
-                return;
-            }
-        }
-        Condition::C => {
-            if !cpu.registers.af.flags.get(Flag::C) {
-                return;
-            }
-        }
-        Condition::NC => {
-            if cpu.registers.af.flags.get(Flag::C) {
-                return;
-            }
-        }
-        Condition::None => (),
+        Condition::C if !cpu.registers.af.flags.get(Flag::C) => return,
+        Condition::NC if cpu.registers.af.flags.get(Flag::C) => return,
+        Condition::Z if !cpu.registers.af.flags.get(Flag::Z) => return,
+        Condition::NZ if cpu.registers.af.flags.get(Flag::Z) => return,
+        _ => (),
     }
     cpu.registers.pc.programcounter = cpu
         .registers
@@ -643,27 +799,11 @@ pub fn jp_operation(
     value2: Option<u8>,
 ) {
     match condition {
-        Condition::Z => {
-            if !cpu.registers.af.flags.get(Flag::Z) {
-                return;
-            }
-        }
-        Condition::NZ => {
-            if cpu.registers.af.flags.get(Flag::Z) {
-                return;
-            }
-        }
-        Condition::C => {
-            if !cpu.registers.af.flags.get(Flag::C) {
-                return;
-            }
-        }
-        Condition::NC => {
-            if cpu.registers.af.flags.get(Flag::C) {
-                return;
-            }
-        }
-        Condition::None => (),
+        Condition::C if !cpu.registers.af.flags.get(Flag::C) => return,
+        Condition::NC if cpu.registers.af.flags.get(Flag::C) => return,
+        Condition::Z if !cpu.registers.af.flags.get(Flag::Z) => return,
+        Condition::NZ if cpu.registers.af.flags.get(Flag::Z) => return,
+        _ => (),
     }
     let value: u16 = match target {
         OpTarget::Value(ValueType::u16) => {
@@ -679,6 +819,35 @@ pub fn jp_operation(
     cpu.registers.write_u16(Register::PC, value)
 }
 
+pub fn bit_operation(cpu: &mut Cpu, target: OpTarget, value: u8, memory_map: &mut MemoryMap) {
+    if value > 7 {
+        panic!("Invalid value given for BIT operation")
+    }
+
+    let target = match target {
+        OpTarget::Register(r) => match r {
+            Register::A => cpu.registers.af.accumulator,
+            Register::B => cpu.registers.bc.b,
+            Register::C => cpu.registers.bc.c,
+            Register::D => cpu.registers.de.d,
+            Register::E => cpu.registers.de.e,
+            Register::H => cpu.registers.hl.h,
+            Register::L => cpu.registers.hl.l,
+            _ => panic!("Invalid dest register given for BIT operation"),
+        },
+        OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(HLMode::Normal)))) => {
+            memory_map.read(cpu.registers.read_u16(Register::HL(HLMode::Normal)))
+        }
+        _ => panic!("Invalid source given for BIT operation"),
+    };
+    cpu.registers.af.flags.set(Flag::N, false);
+    cpu.registers.af.flags.set(Flag::H, true);
+    cpu.registers
+        .af
+        .flags
+        .set(Flag::Z, ((target >> value) & 0x01) == 0)
+}
+
 pub fn ld_operation(
     cpu: &mut Cpu,
     target1: OpTarget,
@@ -690,163 +859,217 @@ pub fn ld_operation(
     let (dest_length, dest_register) = match_optarget(&target1);
     let (source_length, _source_register) = match_optarget(&target2);
 
-    assert!(source_length == dest_length);
-    let length = &source_length;
-    let eight_bit_source_value = match source_length {
-        FieldLength::u16 => None,
-        FieldLength::u8 => match &target2 {
-            OpTarget::Register(reg) => match reg {
-                Register::A => Some(cpu.registers.af.accumulator),
-                Register::B => Some(cpu.registers.bc.b),
-                Register::C => Some(cpu.registers.bc.c),
-                Register::D => Some(cpu.registers.de.d),
-                Register::E => Some(cpu.registers.de.e),
-                Register::H => Some(cpu.registers.hl.h),
-                Register::L => Some(cpu.registers.hl.l),
-                _ => panic!("16 bit register given for 8 bit LD operation"),
+    if !(source_length == dest_length) {
+        match target1 {
+            OpTarget::Register(Register::HL(HLMode::Normal)) => {
+                assert!(target2 == OpTarget::Register(Register::SPPlusi8));
+                let adder = (byte_two.expect("no value given for LD HL,SP+i8") as i8) as i16;
+                let value = cpu.registers.sp.stackpointer.wrapping_add_signed(adder);
+                cpu.registers.write_u16(Register::HL(HLMode::Normal), value)
+            }
+            OpTarget::Value(ValueType::ff00_plus_deref(s)) => match s {
+                DerefSource::Register(Register::C) => {
+                    let address: u16 = 0xFF00 + (cpu.registers.bc.c as u16);
+                    memory_map.write(address, cpu.registers.af.accumulator)
+                }
+                DerefSource::u8 => {
+                    let address =
+                        0xFF00 + byte_two.expect("no value given for LD (FF00+u8),A") as u16;
+                    memory_map.write(address, cpu.registers.af.accumulator)
+                }
+                _ => panic!("Invalid Deref source for LD,(FF00 + X) operation"),
             },
-            OpTarget::Value(vt) => match vt {
-                ValueType::i8 => byte_two,
-                ValueType::u8 => byte_two,
-                ValueType::deref(source) => match source {
-                    DerefSource::Register(reg) => match reg {
-                        Register::BC => {
-                            let high = cpu.registers.bc.b as u16;
-                            let low = cpu.registers.bc.b as u16;
-                            Some(memory_map.read((high << 8) | low))
-                        }
-                        Register::DE => {
-                            let high = cpu.registers.de.d as u16;
-                            let low = cpu.registers.de.e as u16;
-                            Some(memory_map.read((high << 8) | low))
-                        }
-                        Register::HL(hlm) => {
-                            let high = cpu.registers.hl.h as u16;
-                            let low = cpu.registers.hl.l as u16;
-                            let output = Some(memory_map.read((high << 8) | low));
-                            match hlm {
-                                HLMode::Normal => (),
-                                HLMode::Increment => {
-                                    cpu.registers.hl.l = cpu.registers.hl.l.wrapping_add(1)
-                                }
-                                HLMode::Decrement => {
-                                    cpu.registers.hl.l = cpu.registers.hl.l.wrapping_sub(1)
-                                }
+            OpTarget::Register(Register::A) => {}
+            _ => (),
+        }
+    } else {
+        let length = &source_length;
+        let eight_bit_source_value = match source_length {
+            FieldLength::u16 => None,
+            FieldLength::u8 => match &target2 {
+                OpTarget::Register(reg) => match reg {
+                    Register::A => Some(cpu.registers.af.accumulator),
+                    Register::B => Some(cpu.registers.bc.b),
+                    Register::C => Some(cpu.registers.bc.c),
+                    Register::D => Some(cpu.registers.de.d),
+                    Register::E => Some(cpu.registers.de.e),
+                    Register::H => Some(cpu.registers.hl.h),
+                    Register::L => Some(cpu.registers.hl.l),
+                    _ => panic!("16 bit register given for 8 bit LD operation"),
+                },
+                OpTarget::Value(vt) => match vt {
+                    ValueType::i8 => byte_two,
+                    ValueType::u8 => byte_two,
+                    ValueType::deref(source) => match source {
+                        DerefSource::Register(reg) => match reg {
+                            Register::BC => {
+                                let high = cpu.registers.bc.b as u16;
+                                let low = cpu.registers.bc.b as u16;
+                                Some(memory_map.read((high << 8) | low))
                             }
+                            Register::DE => {
+                                let high = cpu.registers.de.d as u16;
+                                let low = cpu.registers.de.e as u16;
+                                Some(memory_map.read((high << 8) | low))
+                            }
+                            Register::HL(hlm) => {
+                                let high = cpu.registers.hl.h as u16;
+                                let low = cpu.registers.hl.l as u16;
+                                let output = Some(memory_map.read((high << 8) | low));
+                                match hlm {
+                                    HLMode::Normal => (),
+                                    HLMode::Increment => {
+                                        cpu.registers.hl.l = cpu.registers.hl.l.wrapping_add(1)
+                                    }
+                                    HLMode::Decrement => {
+                                        cpu.registers.hl.l = cpu.registers.hl.l.wrapping_sub(1)
+                                    }
+                                }
+                                output
+                            }
+                            _ => panic!(
+                                "Invalid register given to dereference in 8 bit LD operation"
+                            ),
+                        },
+                        DerefSource::u8 => panic!("Invalid deref type given to LD operation"),
+                        DerefSource::u16 => Some(memory_map.read({
+                            let high = byte_two.expect("no upper byte given to 16bit deref") as u16;
+                            let low =
+                                byte_three.expect("no lower byte given to 16bit deref") as u16;
+                            (high << 8) | low
+                        })),
+                    },
+                    _ => panic!("16 bit value given to 8 bit LD operation"),
+                },
+            },
+        };
+        let sixteen_bit_source_value = match source_length {
+            FieldLength::u8 => None,
+            FieldLength::u16 => match &target2 {
+                OpTarget::Register(reg) => match reg {
+                    Register::AF => Some(cpu.registers.read_u16(Register::AF)),
+                    Register::BC => Some(cpu.registers.read_u16(Register::BC)),
+                    Register::DE => Some(cpu.registers.read_u16(Register::DE)),
+                    Register::HL(hlmode) => match hlmode {
+                        HLMode::Normal => {
+                            Some(cpu.registers.read_u16(Register::HL(HLMode::Normal)))
+                        }
+                        HLMode::Increment => {
+                            let output =
+                                Some(cpu.registers.read_u16(Register::HL(HLMode::Increment)));
+                            cpu.registers.hl.l = cpu.registers.hl.l.wrapping_add(1);
                             output
                         }
-                        _ => panic!("Invalid register given to dereference in 8 bit LD operation"),
+                        HLMode::Decrement => {
+                            let output =
+                                Some(cpu.registers.read_u16(Register::HL(HLMode::Decrement)));
+                            cpu.registers.hl.l = cpu.registers.hl.l.wrapping_sub(1);
+                            output
+                        }
                     },
-                    DerefSource::u16 => Some(memory_map.read({
-                        let high = byte_two.expect("no upper byte given to 16bit deref") as u16;
-                        let low = byte_three.expect("no lower byte given to 16bit deref") as u16;
-                        (high << 8) | low
-                    })),
-                },
-                _ => panic!("16 bit value given to 8 bit LD operation"),
-            },
-        },
-    };
-    let sixteen_bit_source_value = match source_length {
-        FieldLength::u8 => None,
-        FieldLength::u16 => match &target2 {
-            OpTarget::Register(reg) => match reg {
-                Register::AF => Some(cpu.registers.read_u16(Register::AF)),
-                Register::BC => Some(cpu.registers.read_u16(Register::BC)),
-                Register::DE => Some(cpu.registers.read_u16(Register::DE)),
-                Register::HL(hlmode) => match hlmode {
-                    HLMode::Normal => Some(cpu.registers.read_u16(Register::HL(HLMode::Normal))),
-                    HLMode::Increment => {
-                        let output = Some(cpu.registers.read_u16(Register::HL(HLMode::Increment)));
-                        cpu.registers.hl.l = cpu.registers.hl.l.wrapping_add(1);
-                        output
+                    Register::SP => Some(cpu.registers.read_u16(Register::SP)),
+                    Register::SPPlusi8 => {
+                        Some(cpu.registers.read_u16(Register::SP).wrapping_add_signed(
+                            byte_two.expect("No value given for LD HL,SP+i8") as i16,
+                        ))
                     }
-                    HLMode::Decrement => {
-                        let output = Some(cpu.registers.read_u16(Register::HL(HLMode::Decrement)));
-                        cpu.registers.hl.l = cpu.registers.hl.l.wrapping_sub(1);
-                        output
-                    }
+                    Register::PC => Some(cpu.registers.read_u16(Register::PC)),
+                    _ => panic!("8 bit register given to 16 bit LD operation"),
                 },
-                Register::SP => Some(cpu.registers.read_u16(Register::SP)),
-                Register::PC => Some(cpu.registers.read_u16(Register::PC)),
-                _ => panic!("8 bit register given to 16 bit LD operation"),
+                OpTarget::Value(vt) => match vt {
+                    ValueType::u16 => {
+                        Some(((byte_two.unwrap() as u16) << 8) | (byte_three.unwrap() as u16))
+                    }
+                    ValueType::ff00_plus_deref(DerefSource::u8) => {
+                        Some(0xFF00 & (byte_two.unwrap() as u16))
+                    }
+                    ValueType::ff00_plus_deref(DerefSource::Register(Register::C)) => {
+                        Some(0xFF00 & (cpu.registers.bc.c as u16))
+                    }
+                    _ => panic!("Invalid source value type sent to 16 bit LD operation)"),
+                },
             },
-            OpTarget::Value(vt) => match vt {
-                ValueType::u16 => {
-                    Some(((byte_two.unwrap() as u16) << 8) | (byte_three.unwrap() as u16))
-                }
-                _ => panic!("Invalid source value type sent to 16 bit LD operation)"),
+        };
+        match length {
+            FieldLength::u8 => match target1 {
+                OpTarget::Register(_) => match dest_register
+                    .expect("dest_register not set for register based 8 bit LD operation")
+                {
+                    Register::A => {
+                        cpu.registers.af.accumulator = eight_bit_source_value
+                            .expect("8bit source did not contain a value for 8bit LD operation")
+                    }
+                    Register::B => {
+                        cpu.registers.bc.b = eight_bit_source_value
+                            .expect("8bit source did not contain a value for 8bit LD operation")
+                    }
+                    Register::C => {
+                        cpu.registers.bc.c = eight_bit_source_value
+                            .expect("8bit source did not contain a value for 8bit LD operation")
+                    }
+                    Register::D => {
+                        cpu.registers.de.d = eight_bit_source_value
+                            .expect("8bit source did not contain a value for 8bit LD operation")
+                    }
+                    Register::E => {
+                        cpu.registers.de.e = eight_bit_source_value
+                            .expect("8bit source did not contain a value for 8bit LD operation")
+                    }
+                    Register::H => {
+                        cpu.registers.hl.h = eight_bit_source_value
+                            .expect("8bit source did not contain a value for 8bit LD operation")
+                    }
+                    Register::L => {
+                        cpu.registers.hl.l = eight_bit_source_value
+                            .expect("8bit source did not contain a value for 8bit LD operation")
+                    }
+                    _ => panic!("16 bit register given to 8 bit LD operation"),
+                },
+                OpTarget::Value(ValueType::deref(deref_source)) => match deref_source {
+                    DerefSource::Register(Register::HL(m)) => memory_map.write(
+                        cpu.registers.read_u16(Register::HL(m)),
+                        eight_bit_source_value.expect("Butts2"),
+                    ),
+                    DerefSource::u16 => memory_map.write(
+                        (byte_two.expect("High byte not given for u16 deref") as u16)
+                            << byte_three.expect("Low byte not given for u16 deref"),
+                        eight_bit_source_value
+                            //.expect("8 bit source did not contain a value for 8bit LD operation"),
+                            .expect("Butts"),
+                    ),
+                    _ => panic!("What"),
+                },
+                _ => panic!("Invalid source given for 8bit LD operation"),
             },
-        },
-    };
-    match length {
-        FieldLength::u8 => match target1 {
-            OpTarget::Register(_) => match dest_register
-                .expect("dest_register not set for register based 8 bit LD operation")
-            {
-                Register::A => {
-                    cpu.registers.af.accumulator = eight_bit_source_value
-                        .expect("8bit source did not contain a value for 8bit LD operation")
+            FieldLength::u16 => {
+                let sixteen_bit_source_value = sixteen_bit_source_value
+                    .expect("dest_register not set for register based 16 bit ld operation");
+                match target1 {
+                    OpTarget::Register(_) => {
+                        if let Some(register) = dest_register {
+                            match register {
+                                Register::BC => cpu
+                                    .registers
+                                    .write_u16(Register::BC, sixteen_bit_source_value),
+                                Register::HL(_) => cpu.registers.write_u16(
+                                    Register::HL(HLMode::Normal),
+                                    sixteen_bit_source_value,
+                                ),
+                                Register::SP => cpu
+                                    .registers
+                                    .write_u16(Register::SP, sixteen_bit_source_value),
+                                _ => {
+                                    panic!("invalid optarget for 16 bit ld operation: {target1:?}")
+                                }
+                            }
+                        }
+                    }
+                    OpTarget::Value(ValueType::deref(DerefSource::u16)) => {
+                        memory_map.write(sixteen_bit_source_value, cpu.registers.af.accumulator)
+                    }
+                    _ => todo!(),
                 }
-                Register::B => {
-                    cpu.registers.bc.b = eight_bit_source_value
-                        .expect("8bit source did not contain a value for 8bit LD operation")
-                }
-                Register::C => {
-                    cpu.registers.bc.c = eight_bit_source_value
-                        .expect("8bit source did not contain a value for 8bit LD operation")
-                }
-                Register::D => {
-                    cpu.registers.de.d = eight_bit_source_value
-                        .expect("8bit source did not contain a value for 8bit LD operation")
-                }
-                Register::E => {
-                    cpu.registers.de.e = eight_bit_source_value
-                        .expect("8bit source did not contain a value for 8bit LD operation")
-                }
-                Register::H => {
-                    cpu.registers.hl.h = eight_bit_source_value
-                        .expect("8bit source did not contain a value for 8bit LD operation")
-                }
-                Register::L => {
-                    cpu.registers.hl.l = eight_bit_source_value
-                        .expect("8bit source did not contain a value for 8bit LD operation")
-                }
-                _ => panic!("16 bit register given to 8 bit LD operation"),
-            },
-            OpTarget::Value(ValueType::deref(deref_source)) => match deref_source {
-                DerefSource::Register(Register::HL(m)) => memory_map.write(
-                    cpu.registers.read_u16(Register::HL(m)),
-                    eight_bit_source_value.expect("Butts2"),
-                ),
-                DerefSource::u16 => memory_map.write(
-                    (byte_two.expect("High byte not given for u16 deref") as u16)
-                        << byte_three.expect("Low byte not given for u16 deref"),
-                    eight_bit_source_value
-                        //.expect("8 bit source did not contain a value for 8bit LD operation"),
-                        .expect("Butts"),
-                ),
-                _ => panic!("What"),
-            },
-            _ => panic!("Invalid source given for 8bit LD operation"),
-        },
-        FieldLength::u16 => match target1 {
-            OpTarget::Register(_) => match dest_register
-                .expect("dest_register not set for register based 16 bit ld operation")
-            {
-                Register::BC => cpu.registers.write_u16(
-                    Register::BC,
-                    sixteen_bit_source_value
-                        .expect("16bit source did not contain a value for 16bit LD operation"),
-                ),
-                Register::HL(_) => cpu.registers.write_u16(
-                    Register::HL(HLMode::Normal),
-                    sixteen_bit_source_value
-                        .expect("16bit source did not contain a value for 16bit LD operation"),
-                ),
-                _ => panic!("invalid optarget for 16 bit ld operation: {target1:?}"),
-            },
-            _ => todo!(),
-        },
+            }
+        }
     }
 }

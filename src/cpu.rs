@@ -1,3 +1,5 @@
+use std::fs::File;
+
 use crate::cpu::asm::*;
 pub use crate::cpu::enums::*;
 use crate::cpu::opfunctions::*;
@@ -64,6 +66,20 @@ impl Cpu {
             },
         }
     }
+    pub fn boot(&mut self, memory: &mut MemoryMap) {
+        let bootrom = include_bytes!("../files/dmg.bin");
+        self.mask_bootrom(*bootrom, memory);
+        self.registers.pc.programcounter = 0x0000;
+        while self.registers.pc.programcounter != 0x0100 {
+            self.execute_next_instruction(memory);
+        }
+        println!("bootrom complete")
+    }
+    fn mask_bootrom(&mut self, bootrom: [u8; 256], memory: &mut MemoryMap) {
+        for (address, byte) in (0_u16..).zip(bootrom.into_iter()) {
+            memory.write(address, byte);
+        }
+    }
     fn get_next_byte(&mut self, memory: MemoryMap) -> u8 {
         let value = memory.read(self.registers.pc.programcounter);
         self.registers.pc.programcounter += 1;
@@ -93,11 +109,14 @@ impl Cpu {
         operation
     }
     pub fn execute_next_instruction(&mut self, memory: &mut MemoryMap) {
-        if self.registers.ime.has_waited {
-            self.registers.ime.has_waited = false;
-        }
         if self.registers.ime.ime {
-            self.registers.ime.has_waited = true;
+            if self.registers.ime.has_waited {
+                self.registers.ime.has_waited = false;
+                self.registers.ime.ime = false;
+            }
+            if self.registers.ime.ime {
+                self.registers.ime.has_waited = true;
+            }
         }
         let operation = self.get_next_operation(*memory);
         let mut i8_value: Option<i8> = None;
@@ -108,10 +127,15 @@ impl Cpu {
                     .expect("Signed value set on operation with no value") as i8,
             )
         }
+        println!(
+            "{:?} {:?},{:?}",
+            operation.opcode, operation.value_one, operation.value_two
+        );
         match operation.opcode {
             Opcode::DAA => daa_operation(self),
             Opcode::PANIC => crash(self),
             Opcode::STOP => todo!(),
+            Opcode::HALT => todo!(),
             Opcode::LD(target1, target2) => ld_operation(
                 self,
                 target1,
@@ -134,7 +158,7 @@ impl Cpu {
                 operation.value_one,
                 operation.value_two,
             ),
-            Opcode::JR(condition, _) => jr_operation(
+            Opcode::JR(condition) => jr_operation(
                 self,
                 condition,
                 operation
@@ -142,6 +166,7 @@ impl Cpu {
                     .expect("No value given for JR operation") as i8,
             ),
             Opcode::RRA => rra_operation(self),
+            Opcode::RRCA => rrca_operation(self),
             Opcode::RLA => rla_operation(self),
             Opcode::RLCA => rlca_operation(self),
             Opcode::ADD(register, target2) => add_operation(
@@ -154,12 +179,33 @@ impl Cpu {
             ),
             Opcode::ADC(source) => adc_operation(self, source, operation.value_one, memory),
             Opcode::SUB(source) => sub_operation(self, source, operation.value_one, memory),
+            Opcode::SBC(source) => sbc_operation(self, source, operation.value_one, memory),
             Opcode::AND(source) => and_operation(self, source, operation.value_one, memory),
             Opcode::XOR(source) => xor_operation(self, source, operation.value_one, memory),
-            Opcode::OR(source) => xor_operation(self, source, operation.value_one, memory),
+            Opcode::OR(source) => or_operation(self, source, operation.value_one, memory),
             Opcode::POP(register) => pop_operation(self, register, memory),
+            Opcode::PUSH(source) => push_operation(self, source, memory),
             Opcode::RET(condition) => ret_operation(self, condition, memory),
+            Opcode::RETI => reti_operation(self, memory),
+            Opcode::CALL(condition) => call_operation(
+                self,
+                condition,
+                operation.value_one,
+                operation.value_two,
+                memory,
+            ),
+            Opcode::RST(rst_addr) => rst_operation(self, rst_addr, memory),
+            Opcode::EI => ei_operation(self),
+            Opcode::DI => di_operation(self),
+            Opcode::CB(cbcode) => self.execute_cb_instruction(cbcode, memory),
+            _ => todo!(),
+        }
+    }
 
+    fn execute_cb_instruction(&mut self, cbcode: CBPrefix, memory: &mut MemoryMap) {
+        match cbcode {
+            CBPrefix::BIT(value, target) => bit_operation(self, target, value, memory),
+            CBPrefix::RRC(target) => rrc_operation(self, target, memory),
             _ => todo!(),
         }
     }

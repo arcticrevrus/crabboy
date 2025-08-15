@@ -87,7 +87,7 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
             OpLength::Two,
         ),
         0x17 => Operation::new(Opcode::RLA, OpLength::One),
-        0x18 => Operation::new(Opcode::JR(Condition::None, ValueType::i8), OpLength::Two),
+        0x18 => Operation::new(Opcode::JR(Condition::None), OpLength::Two),
         0x19 => Operation::new(
             Opcode::ADD(
                 Register::HL(HLMode::Normal),
@@ -113,7 +113,7 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
             OpLength::Two,
         ),
         0x1F => Operation::new(Opcode::RRA, OpLength::One),
-        0x20 => Operation::new(Opcode::JR(Condition::NZ, ValueType::i8), OpLength::Two),
+        0x20 => Operation::new(Opcode::JR(Condition::NZ), OpLength::Two),
         0x21 => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::HL(HLMode::Normal)),
@@ -144,7 +144,7 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
             OpLength::Two,
         ),
         0x27 => Operation::new(Opcode::DAA, OpLength::One),
-        0x28 => Operation::new(Opcode::JR(Condition::Z, ValueType::i8), OpLength::Two),
+        0x28 => Operation::new(Opcode::JR(Condition::Z), OpLength::Two),
         0x29 => Operation::new(
             Opcode::ADD(
                 Register::HL(HLMode::Normal),
@@ -175,7 +175,7 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
             OpLength::Two,
         ),
         0x2F => Operation::new(Opcode::CPL, OpLength::One),
-        0x30 => Operation::new(Opcode::JR(Condition::NC, ValueType::i8), OpLength::Two),
+        0x30 => Operation::new(Opcode::JR(Condition::NC), OpLength::Two),
         0x31 => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::SP),
@@ -215,7 +215,7 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
             OpLength::Two,
         ),
         0x37 => Operation::new(Opcode::SCF, OpLength::One),
-        0x38 => Operation::new(Opcode::JR(Condition::C, ValueType::i8), OpLength::Two),
+        0x38 => Operation::new(Opcode::JR(Condition::C), OpLength::Two),
         0x39 => Operation::new(
             Opcode::ADD(
                 Register::HL(HLMode::Normal),
@@ -776,43 +776,19 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
             OpLength::One,
         ),
         0x97 => Operation::new(Opcode::SUB(OpTarget::Register(Register::A)), OpLength::One),
-        0x98 => Operation::new(
-            Opcode::SBC(Register::A, OpTarget::Register(Register::B)),
-            OpLength::One,
-        ),
-        0x99 => Operation::new(
-            Opcode::SBC(Register::A, OpTarget::Register(Register::C)),
-            OpLength::One,
-        ),
-        0x9A => Operation::new(
-            Opcode::SBC(Register::A, OpTarget::Register(Register::D)),
-            OpLength::One,
-        ),
-        0x9B => Operation::new(
-            Opcode::SBC(Register::A, OpTarget::Register(Register::E)),
-            OpLength::One,
-        ),
-        0x9C => Operation::new(
-            Opcode::SBC(Register::A, OpTarget::Register(Register::H)),
-            OpLength::One,
-        ),
-        0x9D => Operation::new(
-            Opcode::SBC(Register::A, OpTarget::Register(Register::L)),
-            OpLength::One,
-        ),
+        0x98 => Operation::new(Opcode::SBC(OpTarget::Register(Register::B)), OpLength::One),
+        0x99 => Operation::new(Opcode::SBC(OpTarget::Register(Register::C)), OpLength::One),
+        0x9A => Operation::new(Opcode::SBC(OpTarget::Register(Register::D)), OpLength::One),
+        0x9B => Operation::new(Opcode::SBC(OpTarget::Register(Register::E)), OpLength::One),
+        0x9C => Operation::new(Opcode::SBC(OpTarget::Register(Register::H)), OpLength::One),
+        0x9D => Operation::new(Opcode::SBC(OpTarget::Register(Register::L)), OpLength::One),
         0x9E => Operation::new(
-            Opcode::SBC(
-                Register::A,
-                OpTarget::Value(ValueType::deref(DerefSource::Register(Register::HL(
-                    HLMode::Normal,
-                )))),
-            ),
+            Opcode::SBC(OpTarget::Value(ValueType::deref(DerefSource::Register(
+                Register::HL(HLMode::Normal),
+            )))),
             OpLength::One,
         ),
-        0x9F => Operation::new(
-            Opcode::SBC(Register::A, OpTarget::Register(Register::A)),
-            OpLength::One,
-        ),
+        0x9F => Operation::new(Opcode::SBC(OpTarget::Register(Register::A)), OpLength::One),
         0xA0 => Operation::new(Opcode::AND(OpTarget::Register(Register::B)), OpLength::One),
         0xA1 => Operation::new(Opcode::AND(OpTarget::Register(Register::C)), OpLength::One),
         0xA2 => Operation::new(Opcode::AND(OpTarget::Register(Register::D)), OpLength::One),
@@ -875,7 +851,7 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
             Opcode::JP(Condition::None, OpTarget::Value(ValueType::u16)),
             OpLength::Three,
         ),
-        0xC4 => Operation::new(Opcode::CALL(Condition::NZ, ValueType::u16), OpLength::Three),
+        0xC4 => Operation::new(Opcode::CALL(Condition::NZ), OpLength::Three),
         0xC5 => Operation::new(Opcode::PUSH(Register::BC), OpLength::One),
         0xC6 => Operation::new(
             Opcode::ADD(Register::A, OpTarget::Value(ValueType::u8)),
@@ -892,11 +868,8 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
             Some(oc) => Operation::new(Opcode::CB(parse_cb_prefix(oc)), OpLength::Two),
             None => panic!("CB opcode sent with no cb opcode"),
         },
-        0xCC => Operation::new(Opcode::CALL(Condition::Z, ValueType::u16), OpLength::Three),
-        0xCD => Operation::new(
-            Opcode::CALL(Condition::None, ValueType::u16),
-            OpLength::Three,
-        ),
+        0xCC => Operation::new(Opcode::CALL(Condition::Z), OpLength::Three),
+        0xCD => Operation::new(Opcode::CALL(Condition::None), OpLength::Three),
         0xCE => Operation::new(Opcode::ADC(OpTarget::Value(ValueType::u8)), OpLength::Two),
         0xCF => Operation::new(Opcode::RST(RSTAddr::H08), OpLength::One),
         0xD0 => Operation::new(Opcode::RET(Condition::NC), OpLength::One),
@@ -906,7 +879,7 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
             OpLength::Three,
         ),
         0xD3 => Operation::new(Opcode::PANIC, OpLength::None),
-        0xD4 => Operation::new(Opcode::CALL(Condition::NC, ValueType::u16), OpLength::Three),
+        0xD4 => Operation::new(Opcode::CALL(Condition::NC), OpLength::Three),
         0xD5 => Operation::new(Opcode::PUSH(Register::DE), OpLength::One),
         0xD6 => Operation::new(Opcode::SUB(OpTarget::Value(ValueType::u8)), OpLength::Two),
         0xD7 => Operation::new(Opcode::RST(RSTAddr::H10), OpLength::One),
@@ -917,16 +890,13 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
             OpLength::Three,
         ),
         0xDB => Operation::new(Opcode::PANIC, OpLength::None),
-        0xDC => Operation::new(Opcode::CALL(Condition::C, ValueType::u16), OpLength::Three),
+        0xDC => Operation::new(Opcode::CALL(Condition::C), OpLength::Three),
         0xDD => Operation::new(Opcode::PANIC, OpLength::None),
-        0xDE => Operation::new(
-            Opcode::SBC(Register::A, OpTarget::Value(ValueType::u8)),
-            OpLength::Two,
-        ),
+        0xDE => Operation::new(Opcode::SBC(OpTarget::Value(ValueType::u8)), OpLength::Two),
         0xDF => Operation::new(Opcode::RST(RSTAddr::H18), OpLength::One),
         0xE0 => Operation::new(
             Opcode::LD(
-                OpTarget::Value(ValueType::ff00_plus_u8_deref),
+                OpTarget::Value(ValueType::ff00_plus_deref(DerefSource::u8)),
                 OpTarget::Register(Register::A),
             ),
             OpLength::Two,
@@ -934,7 +904,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0xE1 => Operation::new(Opcode::POP(Register::HL(HLMode::Normal)), OpLength::One),
         0xE2 => Operation::new(
             Opcode::LD(
-                OpTarget::Value(ValueType::ff00_plus_register_deref(Register::C)),
+                OpTarget::Value(ValueType::ff00_plus_deref(DerefSource::Register(
+                    Register::C,
+                ))),
                 OpTarget::Register(Register::A),
             ),
             OpLength::One,
@@ -970,7 +942,7 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0xF0 => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::A),
-                OpTarget::Value(ValueType::ff00_plus_u8_deref),
+                OpTarget::Value(ValueType::ff00_plus_deref(DerefSource::u8)),
             ),
             OpLength::Two,
         ),
@@ -978,7 +950,9 @@ pub fn parse_opcode(operation: u8, cb_opcode: Option<u8>) -> Operation {
         0xF2 => Operation::new(
             Opcode::LD(
                 OpTarget::Register(Register::A),
-                OpTarget::Value(ValueType::ff00_plus_register_deref(Register::C)),
+                OpTarget::Value(ValueType::ff00_plus_deref(DerefSource::Register(
+                    Register::C,
+                ))),
             ),
             OpLength::One,
         ),
