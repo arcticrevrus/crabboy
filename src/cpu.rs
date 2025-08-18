@@ -1,5 +1,3 @@
-use std::fs::File;
-
 use crate::cpu::asm::*;
 pub use crate::cpu::enums::*;
 use crate::cpu::opfunctions::*;
@@ -80,12 +78,13 @@ impl Cpu {
             memory.write(address, byte);
         }
     }
-    fn get_next_byte(&mut self, memory: MemoryMap) -> u8 {
+    #[inline(always)]
+    fn get_next_byte(&mut self, memory: &MemoryMap) -> u8 {
         let value = memory.read(self.registers.pc.programcounter);
-        self.registers.pc.programcounter += 1;
+        self.registers.pc.programcounter = self.registers.pc.programcounter.wrapping_add(1);
         value
     }
-    fn get_next_operation(&mut self, memory: MemoryMap) -> Operation {
+    fn get_next_operation(&mut self, memory: &MemoryMap) -> Operation {
         let opcode_byte = self.get_next_byte(memory);
         let mut cb_byte = None;
         if opcode_byte == 0xCB {
@@ -118,7 +117,8 @@ impl Cpu {
                 self.registers.ime.has_waited = true;
             }
         }
-        let operation = self.get_next_operation(*memory);
+        let operation = self.get_next_operation(memory);
+
         let mut i8_value: Option<i8> = None;
         if operation.signed_value {
             i8_value = Some(
@@ -127,10 +127,10 @@ impl Cpu {
                     .expect("Signed value set on operation with no value") as i8,
             )
         }
-        println!(
-            "{:?} {:?},{:?}",
-            operation.opcode, operation.value_one, operation.value_two
-        );
+        //println!(
+        //    "Operation: {:?}\npc: {}",
+        //    operation, self.registers.pc.programcounter
+        //);
         match operation.opcode {
             Opcode::DAA => daa_operation(self),
             Opcode::PANIC => crash(self),
@@ -198,7 +198,6 @@ impl Cpu {
             Opcode::EI => ei_operation(self),
             Opcode::DI => di_operation(self),
             Opcode::CB(cbcode) => self.execute_cb_instruction(cbcode, memory),
-            _ => todo!(),
         }
     }
 

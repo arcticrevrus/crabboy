@@ -3,6 +3,7 @@ use crate::memory::*;
 
 mod cartridge;
 mod cpu;
+mod graphics;
 mod memory;
 
 fn main() {

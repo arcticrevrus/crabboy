@@ -1,3 +1,8 @@
+pub trait Memory {
+    fn read(&self, address: u16) -> u8;
+    fn write(&mut self, address: u16, value: u8);
+}
+
 macro_rules! memory_region {
     (
         $name:ident,    // Struct name
@@ -27,20 +32,62 @@ macro_rules! memory_region {
     };
 }
 
-pub trait Memory {
-    fn read(&self, address: u16) -> u8;
-    fn write(&mut self, address: u16, value: u8);
-}
-
 memory_region!(Rom0, 0x4000, 0x0000);
 memory_region!(RomX, 0x4000, 0x4000);
-memory_region!(VRam, 0x2000, 0x8000);
+#[derive(Copy, Clone, PartialEq)]
+struct VRam {
+    tiledata: [u8; 0x1800],
+    unlabled: [u8; 0x0800],
+}
+
+impl VRam {
+    pub fn new() -> Self {
+        Self {
+            tiledata: [0; 0x1800],
+            unlabled: [0; 0x0800],
+        }
+    }
+}
+impl Memory for VRam {
+    fn read(&self, address: u16) -> u8 {
+        match address {
+            0x8000..=0x97FF => self.tiledata[(address - 0x8000) as usize],
+            0x9800..=0x9FFF => self.unlabled[(address - 0x9800) as usize],
+            _ => unreachable!(),
+        }
+    }
+    fn write(&mut self, address: u16, value: u8) {
+        match address {
+            0x8000..=0x97FF => self.tiledata[(address - 0x8000) as usize] = value,
+            0x9800..=0x9FFF => self.unlabled[(address - 0x9800) as usize] = value,
+            _ => unreachable!(),
+        }
+    }
+}
 memory_region!(SRam, 0x2000, 0xA000);
 memory_region!(WRam0, 0x1000, 0xC000);
 memory_region!(WRamX, 0x1000, 0xD000);
-memory_region!(Echo, 0x1D00, 0xE000);
-memory_region!(Aom, 0x00A0, 0xFE00);
-memory_region!(UnusedMemory, 0x0050, 0xFEA0);
+memory_region!(Echo, 0x1E00, 0xE000);
+
+#[derive(Copy, Clone, PartialEq)]
+pub struct Oam {
+    memory: [u8; 0x00A0],
+}
+impl Oam {
+    pub fn new() -> Self {
+        Self { memory: [0; 0x0A0] }
+    }
+}
+impl Memory for Oam {
+    fn read(&self, address: u16) -> u8 {
+        self.memory[(address - 0xFE00) as usize]
+    }
+    fn write(&mut self, address: u16, value: u8) {
+        self.memory[(address - 0xFE00) as usize] = value;
+    }
+}
+
+memory_region!(UnusedMemory, 0x0060, 0xFEA0);
 memory_region!(IORegisters, 0x0080, 0xFF00);
 memory_region!(HRam, 0x007F, 0xFF80);
 memory_region!(IERegister, 0x0001, 0xFFFF);
@@ -54,7 +101,7 @@ pub struct MemoryMap {
     wram0: WRam0,
     wramx: WRamX,
     echo: Echo,
-    aom: Aom,
+    aom: Oam,
     unused: UnusedMemory,
     io_registers: IORegisters,
     hram: HRam,
@@ -107,7 +154,7 @@ impl MemoryMap {
             wram0: WRam0::new(),
             wramx: WRamX::new(),
             echo: Echo::new(),
-            aom: Aom::new(),
+            aom: Oam::new(),
             unused: UnusedMemory::new(),
             io_registers: IORegisters::new(),
             hram: HRam::new(),

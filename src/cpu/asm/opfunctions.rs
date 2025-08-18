@@ -904,7 +904,7 @@ pub fn ld_operation(
                         DerefSource::Register(reg) => match reg {
                             Register::BC => {
                                 let high = cpu.registers.bc.b as u16;
-                                let low = cpu.registers.bc.b as u16;
+                                let low = cpu.registers.bc.c as u16;
                                 Some(memory_map.read((high << 8) | low))
                             }
                             Register::DE => {
@@ -916,15 +916,18 @@ pub fn ld_operation(
                                 let high = cpu.registers.hl.h as u16;
                                 let low = cpu.registers.hl.l as u16;
                                 let output = Some(memory_map.read((high << 8) | low));
+                                let hl = cpu.registers.read_u16(Register::HL(HLMode::Normal));
                                 match hlm {
                                     HLMode::Normal => (),
-                                    HLMode::Increment => {
-                                        cpu.registers.hl.l = cpu.registers.hl.l.wrapping_add(1)
-                                    }
-                                    HLMode::Decrement => {
-                                        cpu.registers.hl.l = cpu.registers.hl.l.wrapping_sub(1)
-                                    }
-                                }
+                                    HLMode::Increment => cpu.registers.write_u16(
+                                        Register::HL(HLMode::Normal),
+                                        hl.wrapping_add(1),
+                                    ),
+                                    HLMode::Decrement => cpu.registers.write_u16(
+                                        Register::HL(HLMode::Normal),
+                                        hl.wrapping_sub(1),
+                                    ),
+                                };
                                 output
                             }
                             _ => panic!(
@@ -950,23 +953,19 @@ pub fn ld_operation(
                     Register::AF => Some(cpu.registers.read_u16(Register::AF)),
                     Register::BC => Some(cpu.registers.read_u16(Register::BC)),
                     Register::DE => Some(cpu.registers.read_u16(Register::DE)),
-                    Register::HL(hlmode) => match hlmode {
-                        HLMode::Normal => {
-                            Some(cpu.registers.read_u16(Register::HL(HLMode::Normal)))
+                    Register::HL(hlmode) => {
+                        let hl = cpu.registers.read_u16(Register::HL(HLMode::Normal));
+                        match hlmode {
+                            HLMode::Normal => (),
+                            HLMode::Increment => cpu
+                                .registers
+                                .write_u16(Register::HL(HLMode::Normal), hl.wrapping_add(1)),
+                            HLMode::Decrement => cpu
+                                .registers
+                                .write_u16(Register::HL(HLMode::Normal), hl.wrapping_sub(1)),
                         }
-                        HLMode::Increment => {
-                            let output =
-                                Some(cpu.registers.read_u16(Register::HL(HLMode::Increment)));
-                            cpu.registers.hl.l = cpu.registers.hl.l.wrapping_add(1);
-                            output
-                        }
-                        HLMode::Decrement => {
-                            let output =
-                                Some(cpu.registers.read_u16(Register::HL(HLMode::Decrement)));
-                            cpu.registers.hl.l = cpu.registers.hl.l.wrapping_sub(1);
-                            output
-                        }
-                    },
+                        Some(hl)
+                    }
                     Register::SP => Some(cpu.registers.read_u16(Register::SP)),
                     Register::SPPlusi8 => {
                         Some(cpu.registers.read_u16(Register::SP).wrapping_add_signed(
@@ -981,10 +980,10 @@ pub fn ld_operation(
                         Some(((byte_two.unwrap() as u16) << 8) | (byte_three.unwrap() as u16))
                     }
                     ValueType::ff00_plus_deref(DerefSource::u8) => {
-                        Some(0xFF00 & (byte_two.unwrap() as u16))
+                        Some(0xFF00 + (byte_two.unwrap() as u16))
                     }
                     ValueType::ff00_plus_deref(DerefSource::Register(Register::C)) => {
-                        Some(0xFF00 & (cpu.registers.bc.c as u16))
+                        Some(0xFF00 + (cpu.registers.bc.c as u16))
                     }
                     _ => panic!("Invalid source value type sent to 16 bit LD operation)"),
                 },
@@ -1026,17 +1025,31 @@ pub fn ld_operation(
                     _ => panic!("16 bit register given to 8 bit LD operation"),
                 },
                 OpTarget::Value(ValueType::deref(deref_source)) => match deref_source {
-                    DerefSource::Register(Register::HL(m)) => memory_map.write(
-                        cpu.registers.read_u16(Register::HL(m)),
-                        eight_bit_source_value.expect("Butts2"),
-                    ),
-                    DerefSource::u16 => memory_map.write(
-                        (byte_two.expect("High byte not given for u16 deref") as u16)
-                            << byte_three.expect("Low byte not given for u16 deref"),
-                        eight_bit_source_value
-                            //.expect("8 bit source did not contain a value for 8bit LD operation"),
-                            .expect("Butts"),
-                    ),
+                    DerefSource::Register(Register::HL(m)) => {
+                        let hl = cpu.registers.read_u16(Register::HL(HLMode::Normal));
+                        memory_map.write(
+                            hl,
+                            eight_bit_source_value.expect("No value given for 8bit LD deref"),
+                        );
+                        match m {
+                            HLMode::Normal => (),
+                            HLMode::Increment => cpu
+                                .registers
+                                .write_u16(Register::HL(HLMode::Normal), hl.wrapping_add(1)),
+                            HLMode::Decrement => cpu
+                                .registers
+                                .write_u16(Register::HL(HLMode::Normal), hl.wrapping_sub(1)),
+                        }
+                    }
+                    DerefSource::u16 => {
+                        let high = byte_two.expect("High byte not given for u16 deref") as u16;
+                        let low = byte_three.expect("Low byte not given for u16 deref") as u16;
+                        let addr = (high << 8) | low;
+                        memory_map.write(
+                            addr,
+                            eight_bit_source_value.expect("No value given for 8bit LD deref"),
+                        );
+                    }
                     _ => panic!("What"),
                 },
                 _ => panic!("Invalid source given for 8bit LD operation"),
@@ -1051,10 +1064,22 @@ pub fn ld_operation(
                                 Register::BC => cpu
                                     .registers
                                     .write_u16(Register::BC, sixteen_bit_source_value),
-                                Register::HL(_) => cpu.registers.write_u16(
-                                    Register::HL(HLMode::Normal),
-                                    sixteen_bit_source_value,
-                                ),
+                                Register::DE => cpu
+                                    .registers
+                                    .write_u16(Register::DE, sixteen_bit_source_value),
+                                Register::HL(m) => {
+                                    let mut final_value = sixteen_bit_source_value;
+                                    match m {
+                                        HLMode::Normal => (),
+                                        HLMode::Increment => {
+                                            final_value = final_value.wrapping_add(1)
+                                        }
+                                        HLMode::Decrement => {
+                                            final_value = final_value.wrapping_sub(1)
+                                        }
+                                    }
+                                    cpu.registers.write_u16(Register::HL(m), final_value);
+                                }
                                 Register::SP => cpu
                                     .registers
                                     .write_u16(Register::SP, sixteen_bit_source_value),
