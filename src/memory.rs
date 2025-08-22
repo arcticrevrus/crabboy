@@ -60,9 +60,14 @@ impl TileData {
     }
 }
 #[derive(Copy, Clone, PartialEq)]
+struct TileMap {
+    map: [u8; 1024],
+}
+#[derive(Copy, Clone, PartialEq)]
 struct VRam {
     tiledata: TileData,
-    unlabled: [u8; 0x0800],
+    tilemap0: TileMap,
+    tilemap1: TileMap,
 }
 
 impl VRam {
@@ -73,7 +78,8 @@ impl VRam {
                 block1: [0; 0x07FF],
                 block2: [0; 0x07FF],
             },
-            unlabled: [0; 0x0800],
+            tilemap0: TileMap { map: [0; 0x0400] },
+            tilemap1: TileMap { map: [0; 0x0400] },
         }
     }
 }
@@ -83,7 +89,8 @@ impl Memory for VRam {
             0x8000..=0x87FF => self.tiledata.block0[(address - 0x8000) as usize],
             0x8800..=0x8FFF => self.tiledata.block1[(address - 0x8800) as usize],
             0x9000..=0x97FF => self.tiledata.block2[(address - 0x9000) as usize],
-            0x9800..=0x9FFF => self.unlabled[(address - 0x9800) as usize],
+            0x9800..=0x9BFF => self.tilemap0.map[(address - 0x9800) as usize],
+            0x9C00..=0x9FFF => self.tilemap1.map[(address - 0x9C00) as usize],
             _ => unreachable!(),
         }
     }
@@ -92,7 +99,8 @@ impl Memory for VRam {
             0x8000..=0x87FF => self.tiledata.block0[(address - 0x8000) as usize] = value,
             0x8800..=0x8FFF => self.tiledata.block1[(address - 0x8800) as usize] = value,
             0x9000..=0x97FF => self.tiledata.block2[(address - 0x9000) as usize] = value,
-            0x9800..=0x9FFF => self.unlabled[(address - 0x9800) as usize] = value,
+            0x9800..=0x9BFF => self.tilemap0.map[(address - 0x9800) as usize] = value,
+            0x9C00..=0x9FFF => self.tilemap1.map[(address - 0x9C00) as usize] = value,
             _ => unreachable!(),
         }
     }
@@ -126,15 +134,27 @@ pub struct LCDC {
     lcdcontrol: u8,
 }
 #[derive(Copy, Clone, PartialEq)]
+pub struct SCY {
+    scroll_y: u8,
+}
+#[derive(Copy, Clone, PartialEq)]
+pub struct SCX {
+    scroll_x: u8,
+}
+#[derive(Copy, Clone, PartialEq)]
 pub struct IORegisters {
     memory: [u8; 0x0080],
     lcdcontrol: LCDC,
+    scy: SCY,
+    scx: SCX,
 }
 impl IORegisters {
     pub fn new() -> Self {
         Self {
             memory: [0; 0x0080],
             lcdcontrol: LCDC { lcdcontrol: 0 },
+            scy: SCY { scroll_y: 0 },
+            scx: SCX { scroll_x: 0 },
         }
     }
 }
