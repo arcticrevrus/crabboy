@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+gtk = { package = "gtk4", version = "0.10.0" }
+async-channel = "2.5.0"
+rand = "0.8.5"

@@ -1,8 +1,12 @@
+use std::sync::Arc;
+use std::sync::Mutex;
+
 use crate::cpu::asm::*;
 pub use crate::cpu::enums::*;
 use crate::cpu::opfunctions::*;
 use crate::cpu::parse::*;
 use crate::cpu::structs::*;
+use crate::graphics::Display;
 use crate::{memory::Memory, memory::MemoryMap};
 
 mod asm;
@@ -64,12 +68,16 @@ impl Cpu {
             },
         }
     }
-    pub fn boot(&mut self, memory: &mut MemoryMap) {
+    pub fn boot(&mut self, memory: &mut MemoryMap, display: Arc<Mutex<Display>>) {
         let bootrom = include_bytes!("../files/dmg.bin");
         self.mask_bootrom(*bootrom, memory);
         self.registers.pc.programcounter = 0x0000;
         while self.registers.pc.programcounter != 0x0100 {
             self.execute_next_instruction(memory);
+            display
+                .lock()
+                .expect("failed to unlock display mutex")
+                .update(memory);
         }
         println!("bootrom complete")
     }

@@ -1,3 +1,5 @@
+use crate::graphics::{self, Tile};
+
 pub trait Memory {
     fn read(&self, address: u16) -> u8;
     fn write(&mut self, address: u16, value: u8);
@@ -35,15 +37,42 @@ macro_rules! memory_region {
 memory_region!(Rom0, 0x4000, 0x0000);
 memory_region!(RomX, 0x4000, 0x4000);
 #[derive(Copy, Clone, PartialEq)]
+pub struct TileData {
+    block0: [u8; 0x07FF],
+    block1: [u8; 0x07FF],
+    block2: [u8; 0x07FF],
+}
+impl TileData {
+    pub fn get_tile(self, lcdc: LCDC, id: u8) -> graphics::Tile {
+        let lcdc4: bool = lcdc.lcdcontrol & 0b0001_0000 == 0b0001_0000;
+        let start = id as usize;
+        let end = 16usize;
+        let bytes: [u8; 16] = match id {
+            0..=127 => match lcdc4 {
+                true => self.block0,
+                false => self.block1,
+            },
+            128..=255 => self.block1,
+        }[start..=end]
+            .try_into()
+            .expect("Error getting tiledata");
+        graphics::Tile::new(bytes)
+    }
+}
+#[derive(Copy, Clone, PartialEq)]
 struct VRam {
-    tiledata: [u8; 0x1800],
+    tiledata: TileData,
     unlabled: [u8; 0x0800],
 }
 
 impl VRam {
     pub fn new() -> Self {
         Self {
-            tiledata: [0; 0x1800],
+            tiledata: TileData {
+                block0: [0; 0x07FF],
+                block1: [0; 0x07FF],
+                block2: [0; 0x07FF],
+            },
             unlabled: [0; 0x0800],
         }
     }
@@ -51,14 +80,18 @@ impl VRam {
 impl Memory for VRam {
     fn read(&self, address: u16) -> u8 {
         match address {
-            0x8000..=0x97FF => self.tiledata[(address - 0x8000) as usize],
+            0x8000..=0x87FF => self.tiledata.block0[(address - 0x8000) as usize],
+            0x8800..=0x8FFF => self.tiledata.block1[(address - 0x8800) as usize],
+            0x9000..=0x97FF => self.tiledata.block2[(address - 0x9000) as usize],
             0x9800..=0x9FFF => self.unlabled[(address - 0x9800) as usize],
             _ => unreachable!(),
         }
     }
     fn write(&mut self, address: u16, value: u8) {
         match address {
-            0x8000..=0x97FF => self.tiledata[(address - 0x8000) as usize] = value,
+            0x8000..=0x87FF => self.tiledata.block0[(address - 0x8000) as usize] = value,
+            0x8800..=0x8FFF => self.tiledata.block1[(address - 0x8800) as usize] = value,
+            0x9000..=0x97FF => self.tiledata.block2[(address - 0x9000) as usize] = value,
             0x9800..=0x9FFF => self.unlabled[(address - 0x9800) as usize] = value,
             _ => unreachable!(),
         }
@@ -88,7 +121,39 @@ impl Memory for Oam {
 }
 
 memory_region!(UnusedMemory, 0x0060, 0xFEA0);
-memory_region!(IORegisters, 0x0080, 0xFF00);
+#[derive(Copy, Clone, PartialEq)]
+pub struct LCDC {
+    lcdcontrol: u8,
+}
+#[derive(Copy, Clone, PartialEq)]
+pub struct IORegisters {
+    memory: [u8; 0x0080],
+    lcdcontrol: LCDC,
+}
+impl IORegisters {
+    pub fn new() -> Self {
+        Self {
+            memory: [0; 0x0080],
+            lcdcontrol: LCDC { lcdcontrol: 0 },
+        }
+    }
+}
+impl Memory for IORegisters {
+    fn read(&self, address: u16) -> u8 {
+        match address {
+            0xFF40 => self.lcdcontrol.lcdcontrol,
+            0xFF00..=0xFF39 | 0xFF41..=0xFF80 => self.memory[(address - 0xFF00) as usize],
+            _ => unreachable!(),
+        }
+    }
+    fn write(&mut self, address: u16, value: u8) {
+        match address {
+            0xFF40 => self.lcdcontrol.lcdcontrol = value,
+            0xFF00..=0xFF39 | 0xFF41..=0xFF80 => self.memory[(address - 0xFF00) as usize] = value,
+            _ => unreachable!(),
+        };
+    }
+}
 memory_region!(HRam, 0x007F, 0xFF80);
 memory_region!(IERegister, 0x0001, 0xFFFF);
 
@@ -146,7 +211,7 @@ impl Memory for MemoryMap {
 #[allow(dead_code)]
 impl MemoryMap {
     pub fn new() -> Self {
-        MemoryMap {
+        Self {
             rom0: Rom0::new(),
             romx: RomX::new(),
             vram: VRam::new(),
@@ -160,5 +225,20 @@ impl MemoryMap {
             hram: HRam::new(),
             ie_register: IERegister::new(),
         }
+    }
+    pub fn load_tiles(self) -> Vec<Tile> {
+        let mut i = 0 as usize;
+        let mut tiles: Vec<Tile> = Vec::new();
+        while i <= 255 {
+            let tile = self
+                .vram
+                .tiledata
+                .get_tile(self.io_registers.lcdcontrol, i as u8);
+            if !(tile == Tile::new([0; 16])) {
+                tiles.push(tile)
+            }
+            i += 1;
+        }
+        tiles
     }
 }

@@ -1,4 +1,5 @@
 mod cpu;
+mod graphics;
 mod memory;
 
 #[cfg(test)]

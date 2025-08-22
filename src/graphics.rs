@@ -1,13 +1,39 @@
-#[derive(Copy, Clone)]
-enum Color {
+use rand::{
+    Rng,
+    distributions::{Distribution, Standard},
+};
+
+use crate::memory::{self, MemoryMap};
+#[derive(Copy, Clone, PartialEq, Eq)]
+pub enum Color {
     C0,
     C1,
     C2,
     C3,
 }
+impl Distribution<Color> for Standard {
+    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Color {
+        match rng.gen_range(0..=3) {
+            0 => Color::C0,
+            1 => Color::C1,
+            2 => Color::C2,
+            _ => Color::C3,
+        }
+    }
+}
+impl Color {
+    pub fn as_bits(self) -> u8 {
+        match self {
+            Color::C0 => 0x00,
+            Color::C1 => 0x01,
+            Color::C2 => 0x02,
+            Color::C3 => 0x03,
+        }
+    }
+}
 
-#[derive(Clone, Copy)]
-struct TileLine {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct TileLine {
     line: [Color; 8],
 }
 impl TileLine {
@@ -47,21 +73,93 @@ impl TileLine {
     }
 }
 
-struct Tile {
+#[derive(PartialEq, Eq)]
+pub struct Tile {
     lines: [TileLine; 8],
 }
-
-struct ScanLine {
-    pixels: [Color; 160],
+impl Tile {
+    pub fn new(bytes: [u8; 16]) -> Self {
+        let mut lines: [TileLine; 8] = [TileLine::new(0, 0); 8];
+        for i in 0..8 {
+            let byte_one = bytes[i * 2];
+            let byte_two = bytes[i * 2 + 1];
+            lines[i] = TileLine::new(byte_one, byte_two);
+        }
+        Self { lines }
+    }
 }
 
-struct Display {
-    lines: [ScanLine; 144],
+enum ObjectSize {
+    EightXEight,
+    EightXSixteen,
 }
+struct Object {
+    size: ObjectSize,
+    tile1: Tile,
+    tile2: Option<Tile>,
+}
+
+#[derive(Copy, Clone)]
+pub struct ScanLine {
+    pub pixels: [Color; 160],
+}
+impl ScanLine {
+    pub fn new() -> Self {
+        Self {
+            pixels: [Color::C0; 160],
+        }
+    }
+}
+#[derive(Clone)]
+pub struct Display {
+    pub lines: [ScanLine; 144],
+}
+
 impl Display {
+    pub fn new() -> Self {
+        Self {
+            lines: [ScanLine::new(); 144],
+        }
+    }
     #[inline(always)]
-    pub fn set(&mut self, color: Color, x: u8, y: u8) {
+    pub fn set(&mut self, color: Color, x: usize, y: usize) {
         debug_assert!(x <= 160 && y <= 144);
-        const SCREEN_WIDTH: usize = 144;
+        self.lines[y].pixels[x] = color;
+    }
+    pub fn update(&mut self, memory: &memory::MemoryMap) {
+        ()
+    }
+    fn load_tiles_from_vram(memory: &memory::MemoryMap) {
+        let tiles = memory.load_tiles();
+    }
+    pub fn test_pattern(&mut self) {
+        let mut i = 0;
+        for y in 0..144 {
+            for x in 0..160 {
+                self.set(
+                    match i {
+                        0 => {
+                            i += 1;
+                            Color::C0
+                        }
+                        1 => {
+                            i += 1;
+                            Color::C1
+                        }
+                        2 => {
+                            i += 1;
+                            Color::C2
+                        }
+                        3 => {
+                            i = 0;
+                            Color::C3
+                        }
+                        _ => panic!("Invalid color index"),
+                    },
+                    x,
+                    y,
+                );
+            }
+        }
     }
 }
