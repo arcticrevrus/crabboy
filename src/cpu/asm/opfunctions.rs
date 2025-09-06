@@ -135,6 +135,7 @@ pub fn rst_operation(cpu: &mut Cpu, target: RSTAddr, memory_map: &mut MemoryMap)
 }
 
 pub fn ret_operation(cpu: &mut Cpu, condition: Condition, memory_map: &mut MemoryMap) {
+    println!("We have decoded the logo");
     match condition {
         Condition::C if !cpu.registers.af.flags.get(Flag::C) => return,
         Condition::NC if cpu.registers.af.flags.get(Flag::C) => return,

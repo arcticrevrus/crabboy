@@ -11,6 +11,17 @@ pub enum OpTarget {
     Value(ValueType),
 }
 
+#[derive(Debug)]
+pub enum Timing {
+    Four,
+    Eight,
+    Twelve,
+    Sixteen,
+    Twenty,
+    TwentyFour,
+    Variable(Box<(Timing, Timing)>),
+}
+
 pub enum Flag {
     Z,
     N,
@@ -128,17 +139,17 @@ pub enum Opcode {
 #[allow(clippy::upper_case_acronyms, non_camel_case_types)]
 #[allow(dead_code)]
 pub enum CBPrefix {
-    RLC(OpTarget),
-    RRC(OpTarget),
-    RL(OpTarget),
-    RR(OpTarget),
-    SLA(OpTarget),
-    SRA(OpTarget),
-    SWAP(OpTarget),
-    SRL(OpTarget),
-    BIT(u8, OpTarget),
-    RES(u8, OpTarget),
-    SET(u8, OpTarget),
+    RLC(OpTarget, Timing),
+    RRC(OpTarget, Timing),
+    RL(OpTarget, Timing),
+    RR(OpTarget, Timing),
+    SLA(OpTarget, Timing),
+    SRA(OpTarget, Timing),
+    SWAP(OpTarget, Timing),
+    SRL(OpTarget, Timing),
+    BIT(u8, OpTarget, Timing),
+    RES(u8, OpTarget, Timing),
+    SET(u8, OpTarget, Timing),
 }
 
 #[derive(Debug)]

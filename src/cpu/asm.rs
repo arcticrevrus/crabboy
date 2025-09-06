@@ -8,15 +8,17 @@ pub mod parse;
 pub struct Operation {
     pub opcode: Opcode,
     pub length: OpLength,
+    pub cycles: Timing,
     pub value_one: Option<u8>,
     pub value_two: Option<u8>,
     pub signed_value: bool,
 }
 impl Operation {
-    pub fn new(opcode: Opcode, length: OpLength) -> Operation {
+    pub fn new(opcode: Opcode, length: OpLength, cycles: Timing) -> Operation {
         Operation {
             opcode,
             length,
+            cycles,
             value_one: None,
             value_two: None,
             signed_value: false,
