@@ -211,8 +211,8 @@ impl Cpu {
 
     fn execute_cb_instruction(&mut self, cbcode: CBPrefix, memory: &mut MemoryMap) {
         match cbcode {
-            CBPrefix::BIT(value, target) => bit_operation(self, target, value, memory),
-            CBPrefix::RRC(target) => rrc_operation(self, target, memory),
+            CBPrefix::BIT(value, target, timing) => bit_operation(self, target, value, memory),
+            CBPrefix::RRC(target, timing) => rrc_operation(self, target, memory),
             _ => todo!(),
         }
     }

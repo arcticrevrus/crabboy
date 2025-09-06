@@ -3,7 +3,7 @@ use rand::{
     distributions::{Distribution, Standard},
 };
 
-use crate::memory::{self, MemoryMap};
+use crate::memory::{self, MemoryMap, SCX, SCY};
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Color {
     C0,
@@ -30,6 +30,29 @@ impl Color {
             Color::C3 => 0x03,
         }
     }
+}
+
+pub struct BGWindow {
+    enabled: bool,
+    scrollx: u8,
+    scrolly: u8,
+}
+impl BGWindow {
+    pub fn update(&mut self, scx: SCX, scy: SCY) {
+        self.scrollx = scx.scroll_x;
+        self.scrolly = scy.scroll_y;
+    }
+    pub fn get(self) -> (u8, u8) {
+        let bottom = self.scrolly.wrapping_add(143);
+        let right = self.scrollx.wrapping_add(159);
+        (bottom, right)
+    }
+}
+
+pub struct BackGround {
+    pixels: [Color; 65536],
+    enabled: bool,
+    window: BGWindow,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -129,9 +152,7 @@ impl Display {
     pub fn update(&mut self, memory: &memory::MemoryMap) {
         ()
     }
-    fn load_tiles_from_vram(memory: &memory::MemoryMap) {
-        let tiles = memory.load_tiles();
-    }
+    fn load_tiles_from_vram(memory: &memory::MemoryMap) {}
     pub fn test_pattern(&mut self) {
         let mut i = 0;
         for y in 0..144 {

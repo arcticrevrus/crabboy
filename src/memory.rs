@@ -38,9 +38,9 @@ memory_region!(Rom0, 0x4000, 0x0000);
 memory_region!(RomX, 0x4000, 0x4000);
 #[derive(Copy, Clone, PartialEq)]
 pub struct TileData {
-    block0: [u8; 0x07FF],
-    block1: [u8; 0x07FF],
-    block2: [u8; 0x07FF],
+    block0: [u8; 0x0800],
+    block1: [u8; 0x0800],
+    block2: [u8; 0x0800],
 }
 impl TileData {
     pub fn get_tile(self, lcdc: LCDC, id: u8) -> graphics::Tile {
@@ -60,23 +60,23 @@ impl TileData {
     }
 }
 #[derive(Copy, Clone, PartialEq)]
-struct TileMap {
-    map: [u8; 1024],
+pub struct TileMap {
+    pub map: [u8; 1024],
 }
 #[derive(Copy, Clone, PartialEq)]
-struct VRam {
-    tiledata: TileData,
-    tilemap0: TileMap,
-    tilemap1: TileMap,
+pub struct VRam {
+    pub tiledata: TileData,
+    pub tilemap0: TileMap,
+    pub tilemap1: TileMap,
 }
 
 impl VRam {
     pub fn new() -> Self {
         Self {
             tiledata: TileData {
-                block0: [0; 0x07FF],
-                block1: [0; 0x07FF],
-                block2: [0; 0x07FF],
+                block0: [0; 0x0800],
+                block1: [0; 0x0800],
+                block2: [0; 0x0800],
             },
             tilemap0: TileMap { map: [0; 0x0400] },
             tilemap1: TileMap { map: [0; 0x0400] },
@@ -135,18 +135,18 @@ pub struct LCDC {
 }
 #[derive(Copy, Clone, PartialEq)]
 pub struct SCY {
-    scroll_y: u8,
+    pub scroll_y: u8,
 }
 #[derive(Copy, Clone, PartialEq)]
 pub struct SCX {
-    scroll_x: u8,
+    pub scroll_x: u8,
 }
 #[derive(Copy, Clone, PartialEq)]
 pub struct IORegisters {
     memory: [u8; 0x0080],
-    lcdcontrol: LCDC,
-    scy: SCY,
-    scx: SCX,
+    pub lcdcontrol: LCDC,
+    pub scy: SCY,
+    pub scx: SCX,
 }
 impl IORegisters {
     pub fn new() -> Self {
@@ -162,15 +162,17 @@ impl Memory for IORegisters {
     fn read(&self, address: u16) -> u8 {
         match address {
             0xFF40 => self.lcdcontrol.lcdcontrol,
-            0xFF00..=0xFF39 | 0xFF41..=0xFF80 => self.memory[(address - 0xFF00) as usize],
+            0xFF00..=0xFF3F | 0xFF41..=0xFF80 => self.memory[(address - 0xFF00) as usize],
             _ => unreachable!(),
         }
     }
     fn write(&mut self, address: u16, value: u8) {
         match address {
             0xFF40 => self.lcdcontrol.lcdcontrol = value,
-            0xFF00..=0xFF39 | 0xFF41..=0xFF80 => self.memory[(address - 0xFF00) as usize] = value,
-            _ => unreachable!(),
+            0xFF00..=0xFF3F | 0xFF41..=0xFF80 => self.memory[(address - 0xFF00) as usize] = value,
+            _ => {
+                unreachable!()
+            }
         };
     }
 }
@@ -181,14 +183,14 @@ memory_region!(IERegister, 0x0001, 0xFFFF);
 pub struct MemoryMap {
     rom0: Rom0,
     romx: RomX,
-    vram: VRam,
+    pub vram: VRam,
     sram: SRam,
     wram0: WRam0,
     wramx: WRamX,
     echo: Echo,
     aom: Oam,
     unused: UnusedMemory,
-    io_registers: IORegisters,
+    pub io_registers: IORegisters,
     hram: HRam,
     ie_register: IERegister,
 }
