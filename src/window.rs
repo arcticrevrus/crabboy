@@ -1,7 +1,6 @@
+use crabboy::graphics::{Color, Display};
 use gtk::{Application, ApplicationWindow, DrawingArea, cairo, glib, prelude::*};
 use std::sync::{Arc, Mutex};
-
-use crate::graphics::{self, *};
 
 const SCREEN_WIDTH: i32 = 160;
 const SCREEN_HEIGHT: i32 = 144;
@@ -23,7 +22,7 @@ fn mask_surface_from_display(screen: &Display) -> cairo::ImageSurface {
     surf
 }
 
-pub fn draw_window(display: Arc<Mutex<graphics::Display>>) -> glib::ExitCode {
+pub fn draw_window(display: Arc<Mutex<Display>>) -> glib::ExitCode {
     let app = Application::builder()
         .application_id("org.arcticrevrus.CrabBoy")
         .build();
@@ -49,7 +48,7 @@ pub fn draw_window(display: Arc<Mutex<graphics::Display>>) -> glib::ExitCode {
             // Snapshot the framebuffer (keep the lock short)
             let mask_surface = {
                 let fb = display_for_draw.lock().unwrap();
-                mask_surface_from_display(&*fb)
+                mask_surface_from_display(&fb)
             };
 
             let mask_pat = cairo::SurfacePattern::create(&mask_surface);

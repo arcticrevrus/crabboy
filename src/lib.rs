@@ -1,6 +1,38 @@
+use std::{
+    sync::{Arc, Mutex},
+    time::Instant,
+};
+
+use crate::{cpu::Cpu, graphics::Display, hardware::Hardware, memory::MemoryMap};
+
 mod cpu;
-mod graphics;
+pub mod graphics;
+mod hardware;
 mod memory;
+
+pub struct GameBoy {
+    pub cpu: Cpu,
+    pub memory: MemoryMap,
+    pub hardware: Hardware,
+    pub display: Arc<Mutex<Display>>,
+    pub timer: Instant,
+}
+impl GameBoy {
+    pub fn new(mode: crate::cpu::Mode) -> Self {
+        Self {
+            cpu: Cpu::new(mode),
+            memory: MemoryMap::new(),
+            hardware: Hardware::new(),
+            display: Arc::new(Mutex::new(Display::new())),
+            timer: Instant::now(),
+        }
+    }
+}
+impl Default for GameBoy {
+    fn default() -> Self {
+        Self::new(crate::cpu::Mode::DMG)
+    }
+}
 
 #[cfg(test)]
 mod tests {
