@@ -1,8 +1,3 @@
-use rand::{
-    Rng,
-    distributions::{Distribution, Standard},
-};
-
 use crate::memory::{self, MemoryMap, SCX, SCY};
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Color {
@@ -10,16 +5,6 @@ pub enum Color {
     C1,
     C2,
     C3,
-}
-impl Distribution<Color> for Standard {
-    fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> Color {
-        match rng.gen_range(0..=3) {
-            0 => Color::C0,
-            1 => Color::C1,
-            2 => Color::C2,
-            _ => Color::C3,
-        }
-    }
 }
 impl Color {
     pub fn as_bits(self) -> u8 {

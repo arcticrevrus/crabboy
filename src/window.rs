@@ -1,5 +1,5 @@
-use crabboy::graphics::{Color, Display};
 use gtk::{Application, ApplicationWindow, DrawingArea, cairo, glib, prelude::*};
+use libcrabboy::graphics::{Color, Display};
 use std::sync::{Arc, Mutex};
 
 const SCREEN_WIDTH: i32 = 160;

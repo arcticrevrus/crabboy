@@ -1,4 +1,4 @@
-use crabboy::GameBoy;
+use libcrabboy::GameBoy;
 
 mod window;
 

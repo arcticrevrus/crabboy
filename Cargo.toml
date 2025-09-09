@@ -1,5 +1,5 @@
 [package]
-name = "crabboy"
+name = "libcrabboy"
 version = "0.1.0"
 edition = "2024"
 
@@ -7,4 +7,3 @@ edition = "2024"
 gtk = { package = "gtk4", version = "0.10.0" }
 async-channel = "2.5.0"
 winit = "0.30.12"
-rand = "0.8.5"
