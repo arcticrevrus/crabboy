@@ -135,12 +135,12 @@ impl Cpu {
                     .expect("Signed value set on operation with no value") as i8,
             )
         }
-        println!(
-            "Operation: {:?}\npc: {}\nHL Register: {}",
-            operation,
-            self.registers.pc.programcounter.clone(),
-            self.registers.read_u16(Register::HL(HLMode::Normal))
-        );
+        //println!(
+        //    "Operation: {:?}\npc: {}\nHL Register: {}",
+        //    operation,
+        //    self.registers.pc.programcounter.clone(),
+        //    self.registers.read_u16(Register::HL(HLMode::Normal))
+        //);
         match operation.opcode {
             Opcode::DAA => daa_operation(self),
             Opcode::PANIC => crash(self),
