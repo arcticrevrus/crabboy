@@ -7,7 +7,7 @@ use crate::{cpu::Cpu, graphics::Display, hardware::Hardware, memory::MemoryMap};
 
 mod cpu;
 pub mod graphics;
-mod hardware;
+pub mod hardware;
 mod memory;
 
 pub struct GameBoy {
