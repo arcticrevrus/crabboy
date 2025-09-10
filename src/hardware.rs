@@ -1,12 +1,4 @@
-use crate::graphics;
-use std::time::Instant;
-
-enum SelectMode {
-    Dpad,
-    Buttons,
-}
-
-enum Button {
+pub enum Button {
     Up,
     Down,
     Left,
@@ -17,19 +9,25 @@ enum Button {
     B,
 }
 
-enum ButtonState {
+pub enum ButtonState {
     Up,
     Down,
 }
 
 pub struct Hardware {
-    joypad: Joypad,
+    pub joypad: Joypad,
 }
 impl Hardware {
     pub fn new() -> Self {
         Self {
             joypad: Joypad::new(),
         }
+    }
+}
+
+impl Default for Hardware {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -72,5 +70,11 @@ impl Joypad {
             ButtonState::Up => false,
             ButtonState::Down => true,
         };
+    }
+}
+
+impl Default for Joypad {
+    fn default() -> Self {
+        Self::new()
     }
 }
