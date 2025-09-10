@@ -11,6 +11,7 @@ pub enum Button {
     B,
 }
 
+#[derive(Debug)]
 pub enum ButtonState {
     Up,
     Down,
