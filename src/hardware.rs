@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 pub enum Button {
     Up,
     Down,
@@ -15,12 +17,12 @@ pub enum ButtonState {
 }
 
 pub struct Hardware {
-    pub joypad: Joypad,
+    pub joypad: Arc<Mutex<Joypad>>,
 }
 impl Hardware {
     pub fn new() -> Self {
         Self {
-            joypad: Joypad::new(),
+            joypad: Arc::new(Mutex::new(Joypad::new())),
         }
     }
 }
