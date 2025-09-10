@@ -59,23 +59,21 @@ impl Joypad {
         }
     }
     pub fn set(&mut self, button: Button, state: ButtonState) {
-        let button = &mut match button {
-            Button::Up => self.up,
-            Button::Down => self.down,
-            Button::Left => self.left,
-            Button::Right => self.right,
-            Button::Start => self.start,
-            Button::Select => self.select,
-            Button::A => self.a,
-            Button::B => self.b,
+        let target: &mut bool = match button {
+            Button::Up => &mut self.up,
+            Button::Down => &mut self.down,
+            Button::Left => &mut self.left,
+            Button::Right => &mut self.right,
+            Button::Start => &mut self.start,
+            Button::Select => &mut self.select,
+            Button::A => &mut self.a,
+            Button::B => &mut self.b,
         };
-        *button = match state {
-            ButtonState::Up => false,
-            ButtonState::Down => true,
-        };
+        *target = matches!(state, ButtonState::Down);
     }
-    pub fn get(&mut self, button: Button) -> ButtonState {
-        let button_bool = match button {
+
+    pub fn get(&self, button: Button) -> ButtonState {
+        let pressed = match button {
             Button::Up => self.up,
             Button::Down => self.down,
             Button::Left => self.left,
@@ -85,9 +83,10 @@ impl Joypad {
             Button::A => self.a,
             Button::B => self.b,
         };
-        match button_bool {
-            true => ButtonState::Up,
-            false => ButtonState::Down,
+        if pressed {
+            ButtonState::Down
+        } else {
+            ButtonState::Up
         }
     }
 }
