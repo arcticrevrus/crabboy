@@ -73,6 +73,22 @@ impl Joypad {
             ButtonState::Down => true,
         };
     }
+    pub fn get(&mut self, button: Button) -> ButtonState {
+        let button_bool = match button {
+            Button::Up => self.up,
+            Button::Down => self.down,
+            Button::Left => self.left,
+            Button::Right => self.right,
+            Button::Start => self.start,
+            Button::Select => self.select,
+            Button::A => self.a,
+            Button::B => self.b,
+        };
+        match button_bool {
+            true => ButtonState::Up,
+            false => ButtonState::Down,
+        }
+    }
 }
 
 impl Default for Joypad {
